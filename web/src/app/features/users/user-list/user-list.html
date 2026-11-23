@@ -1,0 +1,148 @@
+<div class="space-y-4">
+  <div class="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+    <h1 class="text-2xl font-bold">Usuarios</h1>
+    <button type="button" class="btn btn-primary" (click)="openForm(null)">
+      <i class="fa-solid fa-plus" aria-hidden="true"></i>
+      Agregar
+    </button>
+  </div>
+
+  <label class="input input-bordered flex w-full max-w-md items-center gap-2">
+    <i class="fa-solid fa-magnifying-glass text-base-content/50" aria-hidden="true"></i>
+    <input
+      type="search"
+      class="grow"
+      placeholder="Buscar por nombre o correo"
+      aria-label="Buscar usuarios"
+      maxlength="100"
+      [formControl]="searchControl"
+    />
+  </label>
+
+  @if (listError(); as message) {
+    <app-error-alert [message]="message" (dismissed)="listError.set(null)" />
+  }
+
+  <div class="card bg-base-100 shadow">
+    <div class="overflow-x-auto">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Correo</th>
+            <th>Rol</th>
+            <th>Inmobiliaria</th>
+            <th>Estado</th>
+            <th class="text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (loading() && !result()) {
+            <tr>
+              <td colspan="6" class="py-8 text-center">
+                <span class="loading loading-spinner loading-md" aria-label="Cargando"></span>
+              </td>
+            </tr>
+          } @else {
+            @for (user of result()?.items; track user.id) {
+              <tr
+                class="hover cursor-pointer"
+                tabindex="0"
+                (click)="openDetail(user)"
+                (keydown.enter)="openDetail(user)"
+              >
+                <td class="font-medium">{{ user.fullName }}</td>
+                <td>{{ user.email }}</td>
+                <td>
+                  <span class="badge" [class]="roleBadges[user.role]">{{ roleLabels[user.role] }}</span>
+                </td>
+                <td>{{ user.agencyName ?? '—' }}</td>
+                <td>
+                  <span class="badge" [class.badge-success]="user.isActive" [class.badge-ghost]="!user.isActive">
+                    {{ user.isActive ? 'Activo' : 'Inactivo' }}
+                  </span>
+                </td>
+                <td class="text-right">
+                  <div class="inline-flex gap-2">
+                    <div class="tooltip" data-tip="Editar">
+                      <button
+                        type="button"
+                        class="btn btn-warning btn-sm btn-square"
+                        aria-label="Editar usuario"
+                        (click)="$event.stopPropagation(); openForm(user)"
+                      >
+                        <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                    <div class="tooltip" [attr.data-tip]="isSelf(user) ? 'No puedes eliminar tu propia cuenta' : 'Eliminar'">
+                      <button
+                        type="button"
+                        class="btn btn-error btn-sm btn-square"
+                        aria-label="Eliminar usuario"
+                        [disabled]="isSelf(user)"
+                        (click)="$event.stopPropagation(); askDelete(user)"
+                      >
+                        <i class="fa-solid fa-trash" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="6" class="py-8 text-center text-base-content/60">No se encontraron usuarios.</td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (result(); as page) {
+      <div class="border-t border-base-200 p-4">
+        <app-paginator
+          [page]="page.page"
+          [pageSize]="pageSize"
+          [totalCount]="page.totalCount"
+          (pageChange)="goToPage($event)"
+        />
+      </div>
+    }
+  </div>
+</div>
+
+@if (showForm()) {
+  <app-user-form-modal
+    [user]="formUser()"
+    [agencies]="agencies()"
+    (saved)="onSaved($event)"
+    (cancelled)="closeForm()"
+  />
+}
+
+@if (showDetail() && detailUser(); as user) {
+  <app-user-detail-modal [user]="user" (closed)="closeDetail()" (edit)="editFromDetail()" />
+}
+
+@if (deleteTarget(); as target) {
+  <app-modal title="Eliminar usuario" boxClass="max-w-md" (closed)="cancelDelete()">
+    <div class="space-y-4">
+      @if (deleteError(); as message) {
+        <app-error-alert [message]="message" (dismissed)="deleteError.set(null)" />
+      }
+      <p>
+        ¿Seguro que deseas eliminar a <strong>{{ target.fullName }}</strong> ({{ target.email }})? Esta acción
+        desactiva su acceso a la plataforma.
+      </p>
+      <div class="modal-action">
+        <button type="button" class="btn" [disabled]="deleting()" (click)="cancelDelete()">Cancelar</button>
+        <button type="button" class="btn btn-error" [disabled]="deleting()" (click)="confirmDelete()">
+          @if (deleting()) {
+            <span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+          }
+          Eliminar
+        </button>
+      </div>
+    </div>
+  </app-modal>
+}

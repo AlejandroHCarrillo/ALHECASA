@@ -1,0 +1,77 @@
+<div class="flex h-screen overflow-hidden bg-base-200">
+  <aside
+    class="flex shrink-0 flex-col bg-(--menu-azul) text-white transition-[width] duration-200"
+    [class.w-64]="!collapsed()"
+    [class.w-16]="collapsed()"
+    aria-label="Menú principal"
+  >
+    <!-- Marca sobre placa clara -->
+    <div class="m-2 flex h-14 items-center justify-center rounded-lg bg-[#f4f5f7] text-(--menu-azul)">
+      <i class="fa-solid fa-building text-xl" aria-hidden="true"></i>
+      @if (!collapsed()) {
+        <span class="ml-2 text-lg font-extrabold tracking-wide">ALHECASA</span>
+      }
+    </div>
+
+    <nav class="flex-1 overflow-y-auto px-2 pb-2">
+      @for (group of groups(); track $index) {
+        <ul class="space-y-1 pt-2" [class.mt-2]="$index > 0" [class.border-t]="$index > 0" [class.border-white/40]="$index > 0">
+          @for (item of group; track item.route) {
+            <li>
+              <a
+                class="nav-link"
+                [class.justify-center]="collapsed()"
+                [routerLink]="item.route"
+                routerLinkActive="active"
+                [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
+                [attr.title]="collapsed() ? item.label : null"
+                [attr.aria-label]="item.label"
+              >
+                <i class="fa-solid {{ item.icon }} w-5 text-center" aria-hidden="true"></i>
+                @if (!collapsed()) {
+                  <span>{{ item.label }}</span>
+                }
+              </a>
+            </li>
+          }
+        </ul>
+      }
+    </nav>
+
+    <div class="p-2">
+      <button
+        type="button"
+        class="nav-link w-full"
+        [class.justify-center]="collapsed()"
+        (click)="toggleCollapsed()"
+        [attr.aria-expanded]="!collapsed()"
+        [attr.title]="collapsed() ? 'Expandir menú' : 'Contraer menú'"
+        [attr.aria-label]="collapsed() ? 'Expandir menú' : 'Contraer menú'"
+      >
+        <i class="fa-solid w-5 text-center" [class.fa-angles-left]="!collapsed()" [class.fa-angles-right]="collapsed()" aria-hidden="true"></i>
+        @if (!collapsed()) {
+          <span>Contraer menú</span>
+        }
+      </button>
+    </div>
+  </aside>
+
+  <div class="flex min-w-0 flex-1 flex-col">
+    <header class="flex h-16 shrink-0 items-center justify-end gap-4 bg-base-100 px-6 shadow-sm">
+      <div class="text-right leading-tight">
+        <div class="font-semibold">{{ auth.user()?.fullName }}</div>
+        <div class="text-xs text-base-content/60">
+          {{ roleLabel() }}@if (auth.user()?.agencyName) { · {{ auth.user()?.agencyName }} }
+        </div>
+      </div>
+      <button type="button" class="btn btn-outline btn-sm" (click)="logout()">
+        <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
+        Cerrar sesión
+      </button>
+    </header>
+
+    <main class="flex-1 overflow-y-auto p-6">
+      <router-outlet />
+    </main>
+  </div>
+</div>

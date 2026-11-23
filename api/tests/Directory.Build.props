@@ -1,0 +1,23 @@
+<Project>
+
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <!-- CA1707: los nombres de prueba usan guiones bajos para describir el escenario. -->
+    <!-- xUnit1051: las pruebas no cancelan operaciones a mitad; propagar el token a cada llamada solo añade ruido. -->
+    <NoWarn>$(NoWarn);CA1707;xUnit1051</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- xunit.v3 ya trae Microsoft.Testing.Platform; global.json activa ese corredor para "dotnet test". -->
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

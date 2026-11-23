@@ -1,0 +1,14 @@
+using Alhecasa.Application.Abstractions;
+using Alhecasa.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+
+namespace Alhecasa.Infrastructure.Persistence.Repositories;
+
+internal sealed class AgencyRepository(AlhecasaDbContext db) : IAgencyRepository
+{
+    public Task<Agency?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+        db.Agencies.FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<Agency>> ListAsync(CancellationToken cancellationToken = default) =>
+        await db.Agencies.AsNoTracking().OrderBy(a => a.Name).ToListAsync(cancellationToken);
+}

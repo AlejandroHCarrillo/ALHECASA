@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Alhecasa.Domain\Alhecasa.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Alhecasa.Application\Alhecasa.Application.csproj" />
+    <ProjectReference Include="..\..\src\Alhecasa.Infrastructure\Alhecasa.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

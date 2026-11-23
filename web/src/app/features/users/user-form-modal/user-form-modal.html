@@ -1,0 +1,136 @@
+<app-modal [title]="isEdit() ? 'Editar usuario' : 'Agregar usuario'" (closed)="cancelled.emit()">
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="space-y-4">
+    @if (error(); as message) {
+      <app-error-alert [message]="message" (dismissed)="error.set(null)" />
+    }
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="form-control">
+        <label class="label" for="firstName"><span class="label-text">Nombre <span class="text-error">*</span></span></label>
+        <input
+          id="firstName"
+          type="text"
+          class="input input-bordered w-full"
+          formControlName="firstName"
+          maxlength="100"
+          [class.input-error]="hasError('firstName')"
+        />
+        @if (hasError('firstName')) {
+          <span class="mt-1 text-sm text-error">El nombre es obligatorio.</span>
+        }
+      </div>
+
+      <div class="form-control">
+        <label class="label" for="lastName"><span class="label-text">Apellidos <span class="text-error">*</span></span></label>
+        <input
+          id="lastName"
+          type="text"
+          class="input input-bordered w-full"
+          formControlName="lastName"
+          maxlength="100"
+          [class.input-error]="hasError('lastName')"
+        />
+        @if (hasError('lastName')) {
+          <span class="mt-1 text-sm text-error">Los apellidos son obligatorios.</span>
+        }
+      </div>
+    </div>
+
+    <div class="form-control">
+      <label class="label" for="email"><span class="label-text">Correo <span class="text-error">*</span></span></label>
+      <input
+        id="email"
+        type="email"
+        class="input input-bordered w-full"
+        formControlName="email"
+        maxlength="256"
+        autocomplete="off"
+        [class.input-error]="hasError('email')"
+      />
+      @if (hasError('email')) {
+        <span class="mt-1 text-sm text-error">Captura un correo válido.</span>
+      }
+    </div>
+
+    @if (!isEdit()) {
+      <div class="form-control">
+        <label class="label" for="password"><span class="label-text">Contraseña <span class="text-error">*</span></span></label>
+        <input
+          id="password"
+          type="password"
+          class="input input-bordered w-full"
+          formControlName="password"
+          maxlength="128"
+          autocomplete="new-password"
+          [class.input-error]="hasError('password')"
+        />
+        <span class="mt-1 text-xs" [class.text-error]="hasError('password')" [class.text-base-content/60]="!hasError('password')">
+          Mínimo 10 caracteres, con mayúscula, minúscula y número.
+        </span>
+      </div>
+    }
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="form-control">
+        <label class="label" for="role"><span class="label-text">Rol <span class="text-error">*</span></span></label>
+        <select id="role" class="select select-bordered w-full" formControlName="role">
+          @for (role of roleOptions(); track role) {
+            <option [value]="role">{{ roleLabels[role] }}</option>
+          }
+        </select>
+        @if (isSelf()) {
+          <span class="mt-1 text-xs text-base-content/60">No puedes cambiar tu propio rol.</span>
+        }
+      </div>
+
+      @if (showAgency()) {
+        <div class="form-control">
+          <label class="label" for="agencyId">
+            <span class="label-text">
+              Inmobiliaria
+              @if (selectedRole() === 'AgencyAdmin') {
+                <span class="text-error">*</span>
+              }
+            </span>
+          </label>
+          <select
+            id="agencyId"
+            class="select select-bordered w-full"
+            formControlName="agencyId"
+            [class.select-error]="hasError('agencyId')"
+          >
+            <option value="">
+              {{ selectedRole() === 'AgencyAdmin' ? 'Selecciona una inmobiliaria' : 'Sin inmobiliaria (particular)' }}
+            </option>
+            @for (agency of agencies(); track agency.id) {
+              <option [value]="agency.id">{{ agency.name }}</option>
+            }
+          </select>
+          @if (hasError('agencyId')) {
+            <span class="mt-1 text-sm text-error">Selecciona una inmobiliaria.</span>
+          }
+        </div>
+      }
+    </div>
+
+    @if (isEdit()) {
+      <label class="label cursor-pointer justify-start gap-3">
+        <input type="checkbox" class="checkbox checkbox-primary" formControlName="isActive" />
+        <span class="label-text">Usuario activo</span>
+      </label>
+      @if (isSelf()) {
+        <p class="text-xs text-base-content/60">No puedes desactivar tu propia cuenta.</p>
+      }
+    }
+
+    <div class="modal-action">
+      <button type="button" class="btn" [disabled]="submitting()" (click)="cancelled.emit()">Cancelar</button>
+      <button type="submit" class="btn btn-primary" [disabled]="submitting()">
+        @if (submitting()) {
+          <span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+        }
+        Guardar
+      </button>
+    </div>
+  </form>
+</app-modal>
