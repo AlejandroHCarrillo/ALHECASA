@@ -64,7 +64,8 @@ public class User : BaseEntity
 
     /// <summary>
     /// Regla de dominio: PlatformAdmin no pertenece a una inmobiliaria;
-    /// AgencyAdmin siempre pertenece a una; Client puede ser particular (sin inmobiliaria).
+    /// AgencyAdmin, Supervisor y Seller (el personal de la inmobiliaria) siempre pertenecen a una;
+    /// Client puede ser particular (sin inmobiliaria).
     /// </summary>
     private void ApplyRoleAndAgency(UserRole role, Guid? agencyId)
     {
@@ -74,6 +75,10 @@ public class User : BaseEntity
                 throw new DomainException("A platform administrator cannot belong to an agency.");
             case UserRole.AgencyAdmin when agencyId is null:
                 throw new DomainException("An agency administrator must belong to an agency.");
+            case UserRole.Supervisor when agencyId is null:
+                throw new DomainException("A supervisor must belong to an agency.");
+            case UserRole.Seller when agencyId is null:
+                throw new DomainException("A seller must belong to an agency.");
         }
 
         Role = role;

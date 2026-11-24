@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/auth/auth.service';
 import { USER_ROLE_LABELS, UserRole } from '../core/models/user-role';
+import { Logo } from '../shared/components/logo/logo';
 
 interface MenuItem {
   label: string;
@@ -14,7 +15,15 @@ interface MenuItem {
 
 const MENU_GROUPS: MenuItem[][] = [
   // Operación diaria
-  [{ label: 'Inicio', route: '/inicio', icon: 'fa-house', exact: true }],
+  [
+    { label: 'Inicio', route: '/inicio', icon: 'fa-house', exact: true },
+    {
+      label: 'Propiedades',
+      route: '/propiedades',
+      icon: 'fa-building',
+      roles: [UserRole.PlatformAdmin, UserRole.AgencyAdmin, UserRole.Supervisor, UserRole.Seller],
+    },
+  ],
   // Administración
   [
     {
@@ -30,7 +39,7 @@ const COLLAPSED_KEY = 'alhecasa.menu.collapsed';
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Logo],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './shell.html',
 })

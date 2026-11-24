@@ -1,12 +1,73 @@
 @import "tailwindcss";
+@import "@fontsource-variable/manrope";
+@import "@fontsource-variable/inter";
 
+/*
+ * Identidad visual de ALHECASA (ver documentacion/identidad-visual.md).
+ * Paleta: azul profundo #142D4E, verde petróleo #0F766E, blanco humo #F7F8FA, gris pizarra #475569, coral #F28C74.
+ * Tipografía: Manrope para títulos, Inter para texto e interfaz.
+ */
 @plugin "daisyui" {
-  themes: light --default;
+  themes: alhecasa --default;
+}
+
+@plugin "daisyui/theme" {
+  name: "alhecasa";
+  default: true;
+  color-scheme: light;
+
+  --color-base-100: #ffffff;
+  --color-base-200: #f7f8fa;
+  --color-base-300: #e3e7ed;
+  --color-base-content: #142d4e;
+
+  --color-primary: #0f766e;
+  --color-primary-content: #ffffff;
+  --color-secondary: #142d4e;
+  --color-secondary-content: #ffffff;
+  --color-accent: #f28c74;
+  --color-accent-content: #142d4e;
+  --color-neutral: #475569;
+  --color-neutral-content: #f7f8fa;
+
+  --color-info: #0369a1;
+  --color-info-content: #ffffff;
+  --color-success: #15803d;
+  --color-success-content: #ffffff;
+  --color-warning: #f5a524;
+  --color-warning-content: #142d4e;
+  --color-error: #dc2626;
+  --color-error-content: #ffffff;
+
+  --radius-selector: 0.5rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.75rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Manrope Variable", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {
-  /* Azul del menú lateral */
-  --menu-azul: oklch(41.703% 0.099 251.473);
+  /* Azul profundo de la marca: menú lateral y acentos de texto */
+  --menu-azul: #142d4e;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  .card-title {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
 }
 
 @layer components {

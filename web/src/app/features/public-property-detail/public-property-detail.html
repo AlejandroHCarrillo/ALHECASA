@@ -1,0 +1,183 @@
+<div class="flex min-h-screen flex-col bg-base-100">
+  <header class="bg-base-100 shadow-sm">
+    <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
+      <a routerLink="/" aria-label="ALHECASA, inicio">
+        <app-logo />
+      </a>
+      @if (!auth.isAuthenticated()) {
+        <a routerLink="/login" class="btn btn-primary btn-sm sm:btn-md">
+          <i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>
+          Iniciar sesión
+        </a>
+      }
+    </div>
+  </header>
+
+  <main class="mx-auto w-full max-w-6xl flex-1 space-y-6 px-4 py-6 sm:px-6">
+    <a routerLink="/" class="btn btn-ghost btn-sm">
+      <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+      Volver a las propiedades
+    </a>
+
+    @if (error(); as message) {
+      <app-error-alert [message]="message" (dismissed)="error.set(null)" />
+    }
+
+    @if (loading()) {
+      <div class="flex justify-center py-16">
+        <span class="loading loading-spinner loading-lg" aria-label="Cargando publicación"></span>
+      </div>
+    } @else if (notFound()) {
+      <section class="rounded-box bg-base-200 p-10 text-center" data-testid="not-found">
+        <h1 class="text-2xl font-bold">Esta publicación ya no está disponible</h1>
+        <p class="mt-2 text-base-content/70">Puede que la inmobiliaria la haya retirado o que el enlace no sea correcto.</p>
+        <a routerLink="/" class="btn btn-primary mt-6">Ver propiedades disponibles</a>
+      </section>
+    } @else if (property(); as p) {
+      <article class="space-y-6">
+        <header class="space-y-2">
+          <div class="flex flex-wrap gap-2">
+            <span class="badge" [class.badge-accent]="p.operation === 'Sale'" [class.badge-primary]="p.operation === 'Rent'">
+              En {{ p.operation === 'Sale' ? 'venta' : 'renta' }}
+            </span>
+            <span class="badge badge-ghost">{{ typeLabels[p.type] }}</span>
+          </div>
+          <h1 class="text-3xl font-extrabold leading-tight">{{ p.title }}</h1>
+          <p class="text-base-content/70">
+            <i class="fa-solid fa-location-dot mr-1" aria-hidden="true"></i>{{ location() }}
+          </p>
+        </header>
+
+        <div class="grid gap-6 lg:grid-cols-3">
+          <!-- Galería -->
+          <section class="space-y-3 lg:col-span-2" aria-label="Fotos de la propiedad" data-testid="gallery">
+            @if (currentImage(); as current) {
+              <div
+                class="relative overflow-hidden rounded-box bg-base-300"
+                tabindex="0"
+                (keydown.arrowRight)="step(1)"
+                (keydown.arrowLeft)="step(-1)"
+              >
+                <img
+                  [src]="imageUrl(current)"
+                  [alt]="'Foto ' + (selected() + 1) + ' de ' + imageIds().length + ': ' + p.title"
+                  class="aspect-4/3 w-full object-contain"
+                  data-testid="main-image"
+                />
+
+                @if (imageIds().length > 1) {
+                  <button
+                    type="button"
+                    class="btn btn-circle btn-sm absolute left-3 top-1/2 -translate-y-1/2"
+                    aria-label="Foto anterior"
+                    (click)="step(-1)"
+                  >
+                    <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-circle btn-sm absolute right-3 top-1/2 -translate-y-1/2"
+                    aria-label="Foto siguiente"
+                    (click)="step(1)"
+                  >
+                    <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+                  </button>
+                  <span class="badge badge-neutral absolute bottom-3 right-3" aria-live="polite" data-testid="counter">
+                    {{ selected() + 1 }} / {{ imageIds().length }}
+                  </span>
+                }
+              </div>
+
+              @if (imageIds().length > 1) {
+                <ul class="grid grid-cols-4 gap-2 sm:grid-cols-5" aria-label="Todas las fotos">
+                  @for (id of imageIds(); track id; let i = $index) {
+                    <li>
+                      <button
+                        type="button"
+                        class="block w-full overflow-hidden rounded-box border-2 transition"
+                        [class.border-primary]="i === selected()"
+                        [class.border-transparent]="i !== selected()"
+                        [attr.aria-label]="'Ver foto ' + (i + 1)"
+                        [attr.aria-current]="i === selected() ? 'true' : null"
+                        (click)="select(i)"
+                      >
+                        <img [src]="imageUrl(id)" alt="" class="aspect-4/3 w-full object-cover" loading="lazy" />
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+            } @else {
+              <div
+                class="flex aspect-4/3 w-full flex-col items-center justify-center gap-2 rounded-box bg-base-200 text-base-content/40"
+                data-testid="no-photos"
+              >
+                <i class="fa-regular fa-image text-5xl" aria-hidden="true"></i>
+                <span>Esta propiedad todavía no tiene fotos</span>
+              </div>
+            }
+          </section>
+
+          <!-- Resumen -->
+          <aside class="card h-fit rounded-box border border-base-300 bg-base-100 shadow-sm">
+            <div class="card-body gap-4">
+              <p class="font-display text-3xl font-bold text-secondary">
+                ${{ p.price | number: '1.0-2' }}
+                <span class="text-base font-medium text-base-content/70">
+                  {{ p.currency }}@if (p.operation === 'Rent') { /mes }
+                </span>
+              </p>
+
+              <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                @if (p.bedrooms !== null) {
+                  <div>
+                    <dt class="text-base-content/60"><i class="fa-solid fa-bed mr-1" aria-hidden="true"></i>Recámaras</dt>
+                    <dd class="font-semibold">{{ p.bedrooms }}</dd>
+                  </div>
+                }
+                @if (p.bathrooms !== null) {
+                  <div>
+                    <dt class="text-base-content/60"><i class="fa-solid fa-bath mr-1" aria-hidden="true"></i>Baños</dt>
+                    <dd class="font-semibold">{{ p.bathrooms }}</dd>
+                  </div>
+                }
+                @if (p.constructionArea !== null) {
+                  <div>
+                    <dt class="text-base-content/60"><i class="fa-solid fa-ruler-combined mr-1" aria-hidden="true"></i>Construcción</dt>
+                    <dd class="font-semibold">{{ p.constructionArea | number: '1.0-2' }} m²</dd>
+                  </div>
+                }
+                @if (p.landArea !== null) {
+                  <div>
+                    <dt class="text-base-content/60"><i class="fa-solid fa-vector-square mr-1" aria-hidden="true"></i>Terreno</dt>
+                    <dd class="font-semibold">{{ p.landArea | number: '1.0-2' }} m²</dd>
+                  </div>
+                }
+                <div>
+                  <dt class="text-base-content/60">Tipo</dt>
+                  <dd class="font-semibold">{{ typeLabels[p.type] }}</dd>
+                </div>
+                <div>
+                  <dt class="text-base-content/60">Operación</dt>
+                  <dd class="font-semibold">{{ operationLabels[p.operation] }}</dd>
+                </div>
+              </dl>
+
+              @if (p.agencyName) {
+                <p class="border-t border-base-200 pt-3 text-sm text-base-content/70">Publica: {{ p.agencyName }}</p>
+              }
+              <p class="text-xs text-base-content/60">La dirección exacta se da al contactar a la inmobiliaria.</p>
+            </div>
+          </aside>
+        </div>
+
+        @if (p.description) {
+          <section class="space-y-2">
+            <h2 class="text-xl font-bold">Descripción</h2>
+            <p class="whitespace-pre-line text-base-content/80">{{ p.description }}</p>
+          </section>
+        }
+      </article>
+    }
+  </main>
+</div>

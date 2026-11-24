@@ -34,11 +34,24 @@ export class AuthService {
     );
   }
 
-  /** Cierra la sesión local. Con `returnUrl` se vuelve a la pantalla actual después de ingresar. */
-  logout(returnUrl?: string): void {
+  /** El usuario cierra su sesión a propósito: vuelve a la portada pública. */
+  logout(): void {
+    this.clearSession();
+    void this.router.navigateByUrl('/');
+  }
+
+  /**
+   * La API rechazó el token (venció o dejó de ser válido): se cierra la sesión y se pide ingresar de nuevo,
+   * con `returnUrl` para regresar a la pantalla en la que estaba.
+   */
+  expireSession(returnUrl: string): void {
+    this.clearSession();
+    void this.router.navigate(['/login'], { queryParams: { returnUrl } });
+  }
+
+  private clearSession(): void {
     localStorage.removeItem(SESSION_KEY);
     this._session.set(null);
-    void this.router.navigate(['/login'], returnUrl ? { queryParams: { returnUrl } } : undefined);
   }
 
   hasRole(...roles: UserRole[]): boolean {

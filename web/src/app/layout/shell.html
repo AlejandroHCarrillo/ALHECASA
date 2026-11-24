@@ -5,12 +5,9 @@
     [class.w-16]="collapsed()"
     aria-label="Menú principal"
   >
-    <!-- Marca sobre placa clara -->
-    <div class="m-2 flex h-14 items-center justify-center rounded-lg bg-[#f4f5f7] text-(--menu-azul)">
-      <i class="fa-solid fa-building text-xl" aria-hidden="true"></i>
-      @if (!collapsed()) {
-        <span class="ml-2 text-lg font-extrabold tracking-wide">ALHECASA</span>
-      }
+    <!-- Logo en negativo sobre el azul de la marca -->
+    <div class="m-2 flex h-14 items-center justify-center">
+      <app-logo [negative]="true" [markOnly]="collapsed()" size="md" />
     </div>
 
     <nav class="flex-1 overflow-y-auto px-2 pb-2">

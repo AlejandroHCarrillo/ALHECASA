@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Observable } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
-import { USER_ROLE_LABELS, UserRole } from '../../../core/models/user-role';
+import { USER_ROLE_LABELS, UserRole, requiresAgency } from '../../../core/models/user-role';
 import { ErrorAlert } from '../../../shared/components/error-alert/error-alert';
 import { Modal } from '../../../shared/components/modal/modal';
 import { resolveApiError } from '../../../shared/utils/api-error';
@@ -33,14 +33,28 @@ export class UserFormModal implements OnInit {
   protected readonly isPlatformAdmin = computed(() => this.auth.hasRole(UserRole.PlatformAdmin));
   protected readonly isSelf = computed(() => this.user()?.id === this.auth.user()?.id);
 
-  /** Un AgencyAdmin no puede asignar el rol PlatformAdmin. */
-  protected readonly roleOptions = computed<UserRole[]>(() =>
-    this.isPlatformAdmin()
-      ? [UserRole.PlatformAdmin, UserRole.AgencyAdmin, UserRole.Client]
-      : [UserRole.AgencyAdmin, UserRole.Client],
+  /**
+   * Un AgencyAdmin da de alta a su personal (Administrador, Supervisor, Vendedor): no PlatformAdmin ni Cliente.
+   * Si edita a un Cliente que ya existe, ese rol se muestra para no perderlo, pero no se ofrece al crear.
+   */
+  protected readonly roleOptions = computed<UserRole[]>(() => {
+    if (this.isPlatformAdmin()) {
+      return [UserRole.PlatformAdmin, UserRole.AgencyAdmin, UserRole.Supervisor, UserRole.Seller, UserRole.Client];
+    }
+
+    const staff = [UserRole.AgencyAdmin, UserRole.Supervisor, UserRole.Seller];
+    return this.user()?.role === UserRole.Client ? [...staff, UserRole.Client] : staff;
+  });
+
+  /** Rol sugerido al crear: un administrador de inmobiliaria suele dar de alta vendedores. */
+  private readonly defaultRole = computed<UserRole>(() =>
+    this.isPlatformAdmin() ? UserRole.Client : UserRole.Seller,
   );
 
   protected readonly selectedRole = signal<UserRole>(UserRole.Client);
+
+  /** El rol seleccionado exige pertenecer a una inmobiliaria. */
+  protected readonly agencyRequired = computed(() => requiresAgency(this.selectedRole()));
 
   /** La inmobiliaria solo se elige si quien captura es PlatformAdmin y el rol destino pertenece a una inmobiliaria. */
   protected readonly showAgency = computed(
@@ -98,7 +112,7 @@ export class UserFormModal implements OnInit {
         this.form.controls.isActive.disable();
       }
     } else {
-      this.form.patchValue({ role: this.roleOptions().at(-1) ?? UserRole.Client });
+      this.form.patchValue({ role: this.defaultRole() });
     }
 
     this.selectedRole.set(this.form.controls.role.value);
@@ -156,14 +170,14 @@ export class UserFormModal implements OnInit {
     });
   }
 
-  /** AgencyAdmin exige inmobiliaria; Client puede ser particular; PlatformAdmin no pertenece a ninguna. */
+  /** El personal de la inmobiliaria exige una; Client puede ser particular; PlatformAdmin no pertenece a ninguna. */
   private applyAgencyRules(role: UserRole): void {
     const agency = this.form.controls.agencyId;
     agency.clearValidators();
 
     if (!this.isPlatformAdmin() || role === UserRole.PlatformAdmin) {
       agency.setValue('');
-    } else if (role === UserRole.AgencyAdmin) {
+    } else if (requiresAgency(role)) {
       agency.addValidators(Validators.required);
     }
 

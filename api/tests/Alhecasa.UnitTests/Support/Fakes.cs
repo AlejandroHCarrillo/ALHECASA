@@ -1,6 +1,7 @@
 using Alhecasa.Application.Abstractions;
 using Alhecasa.Application.Auth;
 using Alhecasa.Application.Common;
+using Alhecasa.Application.Properties;
 using Alhecasa.Application.Users;
 using Alhecasa.Domain.Entities;
 using Alhecasa.Domain.Enums;
@@ -73,6 +74,60 @@ internal sealed class FakeAgencyRepository : IAgencyRepository
 
     public Task<IReadOnlyList<Agency>> ListAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<Agency>>(_agencies.ToList());
+}
+
+internal sealed class FakePropertyRepository : IPropertyRepository
+{
+    public List<Property> Items { get; } = [];
+
+    public Task<Property?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Items.FirstOrDefault(p => p.Id == id && !p.IsDeleted));
+
+    public Task<PagedResult<Property>> GetPagedAsync(PropertyListQuery query, CancellationToken cancellationToken = default)
+    {
+        var items = Items.Where(p => !p.IsDeleted).ToList();
+        return Task.FromResult(new PagedResult<Property>(items, query.Page, query.PageSize, items.Count));
+    }
+
+    public Task<Property?> GetPublishedByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Items.FirstOrDefault(p => p.Id == id && !p.IsDeleted && p.Status == PropertyStatus.Published));
+
+    public Task<PagedResult<Property>> GetPublishedPagedAsync(PublicPropertyQuery query, CancellationToken cancellationToken = default)
+    {
+        var items = Items.Where(p => !p.IsDeleted && p.Status == PropertyStatus.Published).ToList();
+        return Task.FromResult(new PagedResult<Property>(items, query.Page, query.PageSize, items.Count));
+    }
+
+    public Task<PropertyImage?> GetImageForServingAsync(Guid imageId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Items.Where(p => !p.IsDeleted).SelectMany(p => p.Images).FirstOrDefault(i => i.Id == imageId));
+
+    public Task AddAsync(Property entity, CancellationToken cancellationToken = default)
+    {
+        Items.Add(entity);
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>Almacenamiento en memoria para las pruebas de unidad.</summary>
+internal sealed class FakeImageStorage : IImageStorage
+{
+    public Dictionary<string, byte[]> Files { get; } = [];
+
+    public async Task SaveAsync(string key, Stream content, CancellationToken cancellationToken = default)
+    {
+        using var buffer = new MemoryStream();
+        await content.CopyToAsync(buffer, cancellationToken);
+        Files[key] = buffer.ToArray();
+    }
+
+    public Task<Stream?> OpenReadAsync(string key, CancellationToken cancellationToken = default) =>
+        Task.FromResult<Stream?>(Files.TryGetValue(key, out var bytes) ? new MemoryStream(bytes) : null);
+
+    public Task DeleteAsync(string key, CancellationToken cancellationToken = default)
+    {
+        Files.Remove(key);
+        return Task.CompletedTask;
+    }
 }
 
 internal sealed class FakeUserRepository : IUserRepository

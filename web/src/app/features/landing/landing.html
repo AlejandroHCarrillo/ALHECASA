@@ -1,0 +1,280 @@
+<div class="flex min-h-screen flex-col">
+  <header class="bg-base-100 shadow-sm">
+    <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
+      <a routerLink="/" aria-label="ALHECASA, inicio">
+        <app-logo />
+      </a>
+      <a routerLink="/login" class="btn btn-primary btn-sm sm:btn-md">
+        <i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>
+        Iniciar sesión
+      </a>
+    </div>
+  </header>
+
+  <!-- Filtros de propiedades: barra pegada arriba al hacer scroll -->
+  <form
+    class="sticky top-0 z-30 border-b border-base-300 bg-base-100/95 shadow-sm backdrop-blur"
+    role="search"
+    aria-label="Filtros de propiedades"
+    [formGroup]="filterForm"
+    (ngSubmit)="search()"
+  >
+    <div class="mx-auto grid max-w-6xl grid-cols-2 gap-2 px-4 py-2 sm:px-6 lg:grid-cols-[1.4fr_1fr_1fr_auto]">
+      <div class="form-control col-span-2 lg:col-span-1">
+        <label class="sr-only" for="filter-location">Ubicación</label>
+        <label class="input input-bordered input-sm flex w-full items-center gap-2">
+          <i class="fa-solid fa-location-dot text-base-content/50" aria-hidden="true"></i>
+          <input
+            id="filter-location"
+            type="search"
+            class="grow"
+            placeholder="Colonia, ciudad o estado"
+            autocomplete="off"
+            [attr.maxlength]="locationMaxLength"
+            formControlName="location"
+          />
+        </label>
+      </div>
+
+      <div class="form-control">
+        <label class="sr-only" for="filter-operation">Operación</label>
+        <select id="filter-operation" class="select select-bordered select-sm w-full" formControlName="operation">
+          <option value="">Venta y renta</option>
+          @for (operation of operations; track operation) {
+            <option [value]="operation">En {{ operation === 'Sale' ? 'venta' : 'renta' }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="form-control">
+        <label class="sr-only" for="filter-type">Tipo de inmueble</label>
+        <select id="filter-type" class="select select-bordered select-sm w-full" formControlName="type">
+          <option value="">Todos los tipos</option>
+          @for (type of types; track type) {
+            <option [value]="type">{{ typeLabels[type] }}</option>
+          }
+        </select>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-sm col-span-2 lg:col-span-1" [disabled]="loading()">
+        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+        Buscar
+      </button>
+    </div>
+  </form>
+
+  <main class="flex-1">
+    <!-- 1. Presentación -->
+    <section class="bg-base-200">
+      <div class="mx-auto max-w-6xl space-y-10 px-4 py-12 sm:px-6 lg:py-16">
+       <div class="grid items-center gap-8 lg:grid-cols-5">
+        <div class="space-y-5 lg:col-span-3">
+          <div class="h-1 w-10 rounded-full bg-accent" aria-hidden="true"></div>
+          <h1 class="text-4xl font-extrabold leading-tight sm:text-5xl">Encuentra tu próximo espacio</h1>
+          <p class="text-xl text-base-content/80">Compra, vende o renta con confianza.</p>
+          <p class="text-base-content/80">
+            Aquí ves las propiedades que publican las inmobiliarias. Si trabajas en una, inicia sesión para
+            administrar las tuyas. <span class="font-semibold text-primary">El lugar donde comienza tu historia.</span>
+          </p>
+          <div class="flex flex-wrap items-center gap-3">
+            <a routerLink="/login" class="btn btn-primary btn-lg">
+              <i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>
+              Iniciar sesión
+            </a>
+            <a href="#propiedades" class="btn btn-ghost btn-lg">Ver propiedades</a>
+          </div>
+          <p class="text-sm text-base-content/70">Las cuentas las da de alta el administrador de cada inmobiliaria.</p>
+        </div>
+
+        <div class="card rounded-box bg-base-100 shadow-xl lg:col-span-2">
+          <div class="card-body gap-4">
+            <h2 class="card-title">En un día de trabajo</h2>
+            <ol class="space-y-4">
+              @for (step of steps; track step.lead) {
+                <li class="flex gap-3">
+                  <i class="fa-solid {{ step.icon }} mt-1 w-5 text-center text-primary" aria-hidden="true"></i>
+                  <p><strong>{{ step.lead }}.</strong> {{ step.text }}</p>
+                </li>
+              }
+            </ol>
+          </div>
+        </div>
+       </div>
+
+      </div>
+    </section>
+
+    <!-- 2. Propiedades publicadas -->
+    <section id="propiedades" class="scroll-mt-36 bg-base-100 lg:scroll-mt-20">
+      <div class="mx-auto max-w-6xl space-y-6 px-4 py-12 sm:px-6">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 class="text-2xl font-bold">Propiedades disponibles</h2>
+            <p class="text-base-content/70" aria-live="polite">
+              @if (result(); as page) {
+                {{ page.totalCount }} {{ page.totalCount === 1 ? 'propiedad' : 'propiedades' }}@if (hasFilters()) { con los filtros elegidos}. Las más recientes primero.
+              } @else {
+                Las más recientes primero.
+              }
+            </p>
+          </div>
+
+          @if (hasFilters()) {
+            <button type="button" class="btn btn-ghost btn-sm self-start sm:self-auto" (click)="clearFilters()">
+              <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+              Quitar filtros
+            </button>
+          }
+        </div>
+
+        @if (error(); as message) {
+          <app-error-alert [message]="message" (dismissed)="error.set(null)" />
+        }
+
+        @if (loading() && !result()) {
+          <div class="flex justify-center py-12">
+            <span class="loading loading-spinner loading-lg" aria-label="Cargando propiedades"></span>
+          </div>
+        } @else {
+          @if (result()?.items?.length) {
+            <ul class="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3" [class.opacity-60]="loading()">
+              @for (property of result()?.items; track property.id) {
+                <li class="card overflow-hidden rounded-box border border-base-300 bg-base-100">
+                  <a
+                    [routerLink]="['/publicaciones', property.id]"
+                    class="block"
+                    [attr.aria-label]="'Ver el detalle de ' + property.title"
+                  >
+                  <figure class="relative aspect-4/3 bg-base-200" data-testid="cover">
+                    @if (property.imageIds[0]; as cover) {
+                      <img
+                        [src]="imageUrl(cover)"
+                        [alt]="'Foto de ' + property.title"
+                        class="h-full w-full object-cover"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      @if (property.imageIds.length > 1) {
+                        <span class="badge badge-neutral badge-sm absolute bottom-2 right-2">
+                          <i class="fa-solid fa-images mr-1" aria-hidden="true"></i>{{ property.imageIds.length }} fotos
+                        </span>
+                      }
+                    } @else {
+                      <div class="flex h-full w-full flex-col items-center justify-center gap-1 text-base-content/40" data-testid="no-cover">
+                        <i class="fa-regular fa-image text-3xl" aria-hidden="true"></i>
+                        <span class="text-xs">Sin fotos</span>
+                      </div>
+                    }
+                  </figure>
+                  </a>
+                  <div class="card-body gap-3">
+                    <div class="flex flex-wrap gap-2">
+                      <span class="badge" [class.badge-accent]="property.operation === 'Sale'" [class.badge-primary]="property.operation === 'Rent'">
+                        En {{ property.operation === 'Sale' ? 'venta' : 'renta' }}
+                      </span>
+                      <span class="badge badge-ghost">{{ typeLabels[property.type] }}</span>
+                    </div>
+
+                    <h3 class="card-title text-lg leading-snug">
+                      <a [routerLink]="['/publicaciones', property.id]" class="hover:text-primary hover:underline">{{ property.title }}</a>
+                    </h3>
+
+                    <p class="text-sm text-base-content/70">
+                      <i class="fa-solid fa-location-dot mr-1" aria-hidden="true"></i>{{ location(property) }}
+                    </p>
+
+                    <p class="font-display text-2xl font-bold text-secondary">
+                      ${{ property.price | number: '1.0-2' }}
+                      <span class="text-sm font-medium text-base-content/70">
+                        {{ property.currency }}@if (property.operation === 'Rent') { /mes }
+                      </span>
+                    </p>
+
+                    @if (property.bedrooms !== null || property.bathrooms !== null || property.constructionArea !== null || property.landArea !== null) {
+                      <ul class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-base-content/80">
+                        @if (property.bedrooms !== null) {
+                          <li><i class="fa-solid fa-bed mr-1" aria-hidden="true"></i>{{ property.bedrooms }} rec.</li>
+                        }
+                        @if (property.bathrooms !== null) {
+                          <li><i class="fa-solid fa-bath mr-1" aria-hidden="true"></i>{{ property.bathrooms }} baños</li>
+                        }
+                        @if (property.constructionArea !== null) {
+                          <li><i class="fa-solid fa-ruler-combined mr-1" aria-hidden="true"></i>{{ property.constructionArea | number: '1.0-2' }} m² const.</li>
+                        }
+                        @if (property.landArea !== null) {
+                          <li><i class="fa-solid fa-vector-square mr-1" aria-hidden="true"></i>{{ property.landArea | number: '1.0-2' }} m² terreno</li>
+                        }
+                      </ul>
+                    }
+
+                    @if (property.description) {
+                      <p class="line-clamp-3 text-sm text-base-content/80">{{ property.description }}</p>
+                    }
+
+                    @if (property.agencyName) {
+                      <p class="mt-auto border-t border-base-200 pt-3 text-xs text-base-content/60">
+                        Publica: {{ property.agencyName }}
+                      </p>
+                    }
+                  </div>
+                </li>
+              }
+            </ul>
+
+            @if (result(); as page) {
+              <app-paginator
+                [page]="page.page"
+                [pageSize]="pageSize"
+                [totalCount]="page.totalCount"
+                (pageChange)="goToPage($event)"
+              />
+            }
+          } @else if (!error()) {
+            <p class="rounded-box bg-base-200 p-8 text-center text-base-content/70">
+              @if (hasFilters()) {
+                No hay propiedades que coincidan con los filtros. Prueba con otra ubicación o quita algún filtro.
+              } @else {
+                Todavía no hay propiedades publicadas.
+              }
+            </p>
+          }
+        }
+      </div>
+    </section>
+
+    <!-- 3. Cierre -->
+    <section class="bg-base-200">
+      <div class="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-2">
+        <div class="space-y-4">
+          <h2 class="text-2xl font-bold">Quién ve qué</h2>
+          <p class="text-base-content/70">Cada cuenta tiene un rol; el personal solo ve la información de su inmobiliaria.</p>
+          <ul class="space-y-3">
+            @for (item of roles; track item.role) {
+              <li>
+                <span class="font-semibold">{{ roleLabels[item.role] }}.</span>
+                <span class="text-base-content/80"> {{ item.text }}</span>
+              </li>
+            }
+          </ul>
+        </div>
+
+        <div class="card rounded-box bg-base-100 shadow-xl">
+          <div class="card-body gap-4">
+            <h2 class="card-title">Lo que no hace</h2>
+            <p>
+              Esta página solo muestra el inventario publicado: todavía no permite contactar a la inmobiliaria, ver el
+              detalle de una propiedad ni crear una cuenta por tu cuenta. Para administrar propiedades necesitas que el
+              administrador de tu inmobiliaria te dé de alta.
+            </p>
+            <div class="card-actions">
+              <a routerLink="/login" class="btn btn-primary">
+                <i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>
+                Iniciar sesión
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>

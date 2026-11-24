@@ -1,0 +1,296 @@
+<app-modal [title]="isEdit() ? 'Editar propiedad' : 'Agregar propiedad'" boxClass="max-w-3xl" (closed)="cancelled.emit()">
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="space-y-4">
+    @if (error(); as message) {
+      <app-error-alert [message]="message" (dismissed)="error.set(null)" />
+    }
+
+    @if (showAgency()) {
+      <div class="form-control">
+        <label class="label" for="agencyId"><span class="label-text">Inmobiliaria <span class="text-error">*</span></span></label>
+        <select
+          id="agencyId"
+          class="select select-bordered w-full"
+          formControlName="agencyId"
+          [class.select-error]="hasError('agencyId')"
+        >
+          <option value="">Selecciona una inmobiliaria</option>
+          @for (agency of agencies(); track agency.id) {
+            <option [value]="agency.id">{{ agency.name }}</option>
+          }
+        </select>
+        @if (hasError('agencyId')) {
+          <span class="mt-1 text-sm text-error">Selecciona una inmobiliaria.</span>
+        }
+      </div>
+    }
+
+    <div class="form-control">
+      <label class="label" for="title"><span class="label-text">Título <span class="text-error">*</span></span></label>
+      <input
+        id="title"
+        type="text"
+        class="input input-bordered w-full"
+        formControlName="title"
+        [attr.maxlength]="limits.title"
+        [class.input-error]="hasError('title')"
+      />
+      @if (hasError('title')) {
+        <span class="mt-1 text-sm text-error">El título es obligatorio.</span>
+      }
+    </div>
+
+    <div class="form-control">
+      <label class="label" for="description"><span class="label-text">Descripción</span></label>
+      <textarea
+        id="description"
+        class="textarea textarea-bordered w-full"
+        rows="3"
+        formControlName="description"
+        [attr.maxlength]="limits.description"
+      ></textarea>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div class="form-control">
+        <label class="label" for="type"><span class="label-text">Tipo <span class="text-error">*</span></span></label>
+        <select id="type" class="select select-bordered w-full" formControlName="type">
+          @for (type of types; track type) {
+            <option [value]="type">{{ typeLabels[type] }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="form-control">
+        <label class="label" for="operation"><span class="label-text">Operación <span class="text-error">*</span></span></label>
+        <select id="operation" class="select select-bordered w-full" formControlName="operation">
+          @for (operation of operations; track operation) {
+            <option [value]="operation">{{ operationLabels[operation] }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="form-control">
+        <label class="label" for="status"><span class="label-text">Estado <span class="text-error">*</span></span></label>
+        <select id="status" class="select select-bordered w-full" formControlName="status">
+          @for (status of statuses; track status) {
+            <option [value]="status">{{ statusLabels[status] }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div class="form-control sm:col-span-2">
+        <label class="label" for="price"><span class="label-text">Precio <span class="text-error">*</span></span></label>
+        <input
+          id="price"
+          type="number"
+          class="input input-bordered w-full"
+          formControlName="price"
+          min="0.01"
+          [max]="limits.maxPrice"
+          step="0.01"
+          [class.input-error]="hasError('price')"
+        />
+        @if (hasError('price')) {
+          <span class="mt-1 text-sm text-error">Captura un precio mayor a cero.</span>
+        }
+      </div>
+
+      <div class="form-control">
+        <label class="label" for="currency"><span class="label-text">Moneda <span class="text-error">*</span></span></label>
+        <select id="currency" class="select select-bordered w-full" formControlName="currency">
+          @for (currency of currencies; track currency) {
+            <option [value]="currency">{{ currency }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="form-control">
+        <label class="label" for="street"><span class="label-text">Calle y número</span></label>
+        <input id="street" type="text" class="input input-bordered w-full" formControlName="street" [attr.maxlength]="limits.street" />
+      </div>
+
+      <div class="form-control">
+        <label class="label" for="neighborhood"><span class="label-text">Colonia</span></label>
+        <input
+          id="neighborhood"
+          type="text"
+          class="input input-bordered w-full"
+          formControlName="neighborhood"
+          [attr.maxlength]="limits.neighborhood"
+        />
+      </div>
+
+      <div class="form-control">
+        <label class="label" for="city"><span class="label-text">Ciudad <span class="text-error">*</span></span></label>
+        <input
+          id="city"
+          type="text"
+          class="input input-bordered w-full"
+          formControlName="city"
+          [attr.maxlength]="limits.city"
+          [class.input-error]="hasError('city')"
+        />
+        @if (hasError('city')) {
+          <span class="mt-1 text-sm text-error">La ciudad es obligatoria.</span>
+        }
+      </div>
+
+      <div class="form-control">
+        <label class="label" for="state"><span class="label-text">Estado (entidad) <span class="text-error">*</span></span></label>
+        <input
+          id="state"
+          type="text"
+          class="input input-bordered w-full"
+          formControlName="state"
+          [attr.maxlength]="limits.state"
+          [class.input-error]="hasError('state')"
+        />
+        @if (hasError('state')) {
+          <span class="mt-1 text-sm text-error">El estado es obligatorio.</span>
+        }
+      </div>
+
+      <div class="form-control">
+        <label class="label" for="postalCode"><span class="label-text">Código postal</span></label>
+        <input
+          id="postalCode"
+          type="text"
+          class="input input-bordered w-full"
+          formControlName="postalCode"
+          [attr.maxlength]="limits.postalCode"
+        />
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div class="form-control">
+        <label class="label" for="bedrooms"><span class="label-text">Recámaras</span></label>
+        <input
+          id="bedrooms"
+          type="number"
+          class="input input-bordered w-full"
+          formControlName="bedrooms"
+          min="0"
+          [max]="limits.maxRooms"
+          step="1"
+          [class.input-error]="hasError('bedrooms')"
+        />
+      </div>
+
+      <div class="form-control">
+        <label class="label" for="bathrooms"><span class="label-text">Baños</span></label>
+        <input
+          id="bathrooms"
+          type="number"
+          class="input input-bordered w-full"
+          formControlName="bathrooms"
+          min="0"
+          [max]="limits.maxRooms"
+          step="1"
+          [class.input-error]="hasError('bathrooms')"
+        />
+      </div>
+
+      <div class="form-control">
+        <label class="label" for="constructionArea"><span class="label-text">Construcción (m²)</span></label>
+        <input
+          id="constructionArea"
+          type="number"
+          class="input input-bordered w-full"
+          formControlName="constructionArea"
+          min="0"
+          [max]="limits.maxArea"
+          step="0.01"
+          [class.input-error]="hasError('constructionArea')"
+        />
+      </div>
+
+      <div class="form-control">
+        <label class="label" for="landArea"><span class="label-text">Terreno (m²)</span></label>
+        <input
+          id="landArea"
+          type="number"
+          class="input input-bordered w-full"
+          formControlName="landArea"
+          min="0"
+          [max]="limits.maxArea"
+          step="0.01"
+          [class.input-error]="hasError('landArea')"
+        />
+      </div>
+    </div>
+
+    <fieldset class="form-control" aria-describedby="images-help">
+      <legend class="label">
+        <span class="label-text">
+          Imágenes <span class="text-error">*</span>
+          <span class="ml-2 text-base-content/60" data-testid="image-count">{{ totalImages() }} de {{ imageLimits.max }}</span>
+        </span>
+      </legend>
+
+      @if (tiles().length > 0) {
+        <ul class="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="image-tiles">
+          @for (tile of tiles(); track tile.kind === 'saved' ? tile.id : tile.src + tile.index; let first = $first) {
+            <li class="relative aspect-4/3 overflow-hidden rounded-box bg-base-200">
+              @if (tile.src) {
+                <img [src]="tile.src" [alt]="tile.kind === 'new' ? tile.name : 'Imagen de la propiedad'" class="h-full w-full object-cover" />
+              }
+              @if (first) {
+                <span class="badge badge-primary badge-sm absolute left-2 top-2">Portada</span>
+              }
+              @if (tile.kind === 'new') {
+                <span class="badge badge-neutral badge-sm absolute bottom-2 left-2">Nueva</span>
+              }
+              <button
+                type="button"
+                class="btn btn-circle btn-xs absolute right-2 top-2"
+                aria-label="Quitar imagen"
+                [disabled]="submitting()"
+                (click)="removeTile(tile)"
+              >
+                ✕
+              </button>
+            </li>
+          }
+        </ul>
+      }
+
+      @if (totalImages() < imageLimits.max) {
+        <input
+          id="images"
+          type="file"
+          multiple
+          class="file-input file-input-bordered mt-3 w-full"
+          [attr.accept]="acceptTypes"
+          [disabled]="submitting()"
+          (change)="onFilesSelected($event)"
+        />
+      }
+
+      <p id="images-help" class="mt-1 text-sm text-base-content/60">
+        De {{ imageLimits.min }} a {{ imageLimits.max }} imágenes JPG, PNG o WebP de hasta 5 MB. La primera es la portada.
+      </p>
+
+      @if (imagesMissing()) {
+        <span class="mt-1 text-sm text-error">Agrega al menos una imagen.</span>
+      }
+      @for (problem of imageProblems(); track problem) {
+        <span class="mt-1 text-sm text-error">{{ problem }}</span>
+      }
+    </fieldset>
+
+    <div class="modal-action">
+      <button type="button" class="btn" [disabled]="submitting()" (click)="cancelled.emit()">Cancelar</button>
+      <button type="submit" class="btn btn-primary" [disabled]="submitting()">
+        @if (submitting()) {
+          <span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+        }
+        Guardar
+      </button>
+    </div>
+  </form>
+</app-modal>

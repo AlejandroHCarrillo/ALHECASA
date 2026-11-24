@@ -1,7 +1,7 @@
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { UserRole } from '../models/user-role';
 import { authInterceptor } from './auth.interceptor';
@@ -16,7 +16,10 @@ describe('authInterceptor', () => {
     localStorage.clear();
     TestBed.configureTestingModule({
       providers: [
-        provideRouter([{ path: 'login', children: [] }]),
+        provideRouter([
+          { path: 'login', children: [] },
+          { path: 'usuarios', children: [] },
+        ]),
         provideHttpClient(withInterceptors([authInterceptor])),
         provideHttpClientTesting(),
       ],
@@ -47,12 +50,17 @@ describe('authInterceptor', () => {
     req.flush({});
   });
 
-  it('logs out when the API answers 401', () => {
+  it('ends the session and asks to log in again, remembering the screen, when the API answers 401', async () => {
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/usuarios');
+
     http.get(`${environment.apiUrl}/users`).subscribe({ error: () => undefined });
     controller
       .expectOne(`${environment.apiUrl}/users`)
       .flush({}, { status: 401, statusText: 'Unauthorized' });
+    await new Promise((resolve) => setTimeout(resolve));
 
     expect(auth.isAuthenticated()).toBe(false);
+    expect(router.url).toBe('/login?returnUrl=%2Fusuarios');
   });
 });

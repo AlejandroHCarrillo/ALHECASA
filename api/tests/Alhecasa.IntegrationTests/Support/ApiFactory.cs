@@ -6,10 +6,33 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace Alhecasa.IntegrationTests.Support;
+
+/// <summary>
+/// SQLite no puede ordenar ni comparar <see cref="DateTimeOffset"/> (lo guarda como texto). Se guarda como entero
+/// solo en las pruebas, para poder ejecutar las mismas consultas que en SQL Server (por ejemplo ORDER BY CreatedAt).
+/// </summary>
+internal sealed class SqliteModelCustomizer(ModelCustomizerDependencies dependencies) : RelationalModelCustomizer(dependencies)
+{
+    public override void Customize(ModelBuilder modelBuilder, DbContext context)
+    {
+        base.Customize(modelBuilder, context);
+
+        var converter = new DateTimeOffsetToBinaryConverter();
+        foreach (var property in modelBuilder.Model.GetEntityTypes()
+                     .SelectMany(e => e.GetProperties())
+                     .Where(p => p.ClrType == typeof(DateTimeOffset) || p.ClrType == typeof(DateTimeOffset?)))
+        {
+            property.SetValueConverter(converter);
+        }
+    }
+}
 
 /// <summary>
 /// Levanta la API real en memoria con una base SQLite efímera (una por instancia).
@@ -54,9 +77,38 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
                 services.Remove(descriptor);
             }
 
-            services.AddDbContext<AlhecasaDbContext>(options => options.UseSqlite(_connection));
+            services.AddDbContext<AlhecasaDbContext>(options => options
+                .UseSqlite(_connection)
+                .ReplaceService<IModelCustomizer, SqliteModelCustomizer>());
+
+            services.RemoveAll<IImageStorage>();
+            services.AddSingleton(Storage);
+            services.AddSingleton<IImageStorage>(sp => sp.GetRequiredService<InMemoryImageStorage>());
         });
     }
+
+    public InMemoryImageStorage Storage { get; } = new();
+
+    /// <summary>Agrega imágenes JPEG a una propiedad (base y almacenamiento), como si ya se hubieran subido.</summary>
+    public async Task<IReadOnlyList<PropertyImage>> AddImagesAsync(Guid propertyId, int count = 1)
+    {
+        var added = new List<PropertyImage>();
+        await WithDbAsync(async db =>
+        {
+            var property = await db.Properties.IgnoreQueryFilters().Include(p => p.Images).SingleAsync(p => p.Id == propertyId);
+            for (var i = 0; i < count; i++)
+            {
+                var key = $"{Guid.CreateVersion7():N}.jpg";
+                await Storage.SaveAsync(key, new MemoryStream(JpegBytes));
+                added.Add(property.AddImage(key, "image/jpeg", JpegBytes.Length));
+            }
+
+            await db.SaveChangesAsync();
+        });
+        return added;
+    }
+
+    public static byte[] JpegBytes { get; } = [0xFF, 0xD8, 0xFF, 0xE0, 0, 0x10, (byte)'J', (byte)'F', (byte)'I', (byte)'F', 0, 1, 2, 3];
 
     protected override IHost CreateHost(IHostBuilder builder)
     {
@@ -103,6 +155,41 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             await db.SaveChangesAsync();
         });
         return user;
+    }
+
+    public async Task<Property> AddPropertyAsync(
+        Guid agencyId,
+        string title = "Casa de prueba",
+        string city = "Ciudad de México",
+        PropertyStatus status = PropertyStatus.Draft,
+        string? street = null,
+        PropertyType type = PropertyType.House,
+        OperationType operation = OperationType.Sale)
+    {
+        var property = new Property(agencyId, new PropertyData(
+            title,
+            null,
+            type,
+            operation,
+            status,
+            1_000_000m,
+            CurrencyCode.MXN,
+            street,
+            null,
+            city,
+            "CDMX",
+            null,
+            null,
+            null,
+            null,
+            null));
+
+        await WithDbAsync(async db =>
+        {
+            db.Properties.Add(property);
+            await db.SaveChangesAsync();
+        });
+        return property;
     }
 
     /// <summary>Modifica un usuario existente directamente en la base (simula un cambio hecho por otro administrador).</summary>

@@ -1,14 +1,15 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
 import { ErrorAlert } from '../../../shared/components/error-alert/error-alert';
+import { Logo } from '../../../shared/components/logo/logo';
 import { resolveApiError } from '../../../shared/utils/api-error';
 
 @Component({
   selector: 'app-login',
-  imports: [ReactiveFormsModule, ErrorAlert],
+  imports: [ReactiveFormsModule, RouterLink, ErrorAlert, Logo],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './login.html',
 })

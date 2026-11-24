@@ -1,6 +1,7 @@
 using Alhecasa.Application.Abstractions;
 using Alhecasa.Application.Common;
 using Alhecasa.Application.Users;
+using Alhecasa.Domain.Common;
 using Alhecasa.Domain.Entities;
 using Alhecasa.Domain.Enums;
 using Alhecasa.UnitTests.Support;
@@ -65,14 +66,80 @@ public sealed class UserServiceTests
     // --- Alta -------------------------------------------------------------------------------
 
     [Fact]
-    public async Task AgencyAdmin_CreatesUser_InOwnAgency_EvenWithoutSendingAgencyId()
+    public async Task AgencyAdmin_CreatesAgencyAdmin_InOwnAgency_EvenWithoutSendingAgencyId()
     {
         var service = CreateService(FakeCurrentUser.AgencyAdmin(_agencyA.Id));
 
-        var created = await service.CreateAsync(NewRequest(UserRole.Client, null));
+        var created = await service.CreateAsync(NewRequest(UserRole.AgencyAdmin, null));
 
         Assert.Equal(_agencyA.Id, created.AgencyId);
         Assert.Equal(1, _unitOfWork.SaveCount);
+    }
+
+    [Fact]
+    public async Task AgencyAdmin_CannotCreateClient()
+    {
+        var service = CreateService(FakeCurrentUser.AgencyAdmin(_agencyA.Id));
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.CreateAsync(NewRequest(UserRole.Client, null)));
+        Assert.Empty(_users.Users);
+        Assert.Equal(0, _unitOfWork.SaveCount);
+    }
+
+    [Fact]
+    public async Task PlatformAdmin_CreatesClient_InAnyAgency()
+    {
+        var service = CreateService(FakeCurrentUser.PlatformAdmin());
+
+        var created = await service.CreateAsync(NewRequest(UserRole.Client, _agencyA.Id));
+
+        Assert.Equal(UserRole.Client, created.Role);
+        Assert.Equal(_agencyA.Id, created.AgencyId);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Supervisor)]
+    [InlineData(UserRole.Seller)]
+    public async Task AgencyAdmin_CreatesEmployee_InOwnAgency_EvenWithoutSendingAgencyId(UserRole role)
+    {
+        var service = CreateService(FakeCurrentUser.AgencyAdmin(_agencyA.Id));
+
+        var created = await service.CreateAsync(NewRequest(role, null));
+
+        Assert.Equal(role, created.Role);
+        Assert.Equal(_agencyA.Id, created.AgencyId);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Supervisor)]
+    [InlineData(UserRole.Seller)]
+    public async Task AgencyAdmin_CannotCreateEmployee_InAnotherAgency(UserRole role)
+    {
+        var service = CreateService(FakeCurrentUser.AgencyAdmin(_agencyA.Id));
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.CreateAsync(NewRequest(role, _agencyB.Id)));
+    }
+
+    [Theory]
+    [InlineData(UserRole.Supervisor)]
+    [InlineData(UserRole.Seller)]
+    public async Task PlatformAdmin_CreatingEmployeeWithoutAgency_IsRejectedByDomain(UserRole role)
+    {
+        var service = CreateService(FakeCurrentUser.PlatformAdmin());
+
+        await Assert.ThrowsAsync<DomainException>(() => service.CreateAsync(NewRequest(role, null)));
+        Assert.Empty(_users.Users);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Supervisor)]
+    [InlineData(UserRole.Seller)]
+    public async Task Employee_CannotManageUsers(UserRole role)
+    {
+        var service = CreateService(new FakeCurrentUser { UserId = Guid.CreateVersion7(), Role = role, AgencyId = _agencyA.Id });
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.GetPagedAsync(new UserListQuery()));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.CreateAsync(NewRequest(UserRole.Seller, null)));
     }
 
     [Fact]
@@ -81,7 +148,7 @@ public sealed class UserServiceTests
         var service = CreateService(FakeCurrentUser.AgencyAdmin(_agencyA.Id));
 
         await Assert.ThrowsAsync<ForbiddenException>(() =>
-            service.CreateAsync(NewRequest(UserRole.Client, _agencyB.Id)));
+            service.CreateAsync(NewRequest(UserRole.AgencyAdmin, _agencyB.Id)));
     }
 
     [Fact]
@@ -209,6 +276,30 @@ public sealed class UserServiceTests
 
         await Assert.ThrowsAsync<ConflictException>(() => service.UpdateAsync(
             first.Id, new("Test", "User", "second@test.local", UserRole.Client, null, true)));
+    }
+
+    [Fact]
+    public async Task AgencyAdmin_CannotTurnAnEmployeeIntoClient()
+    {
+        var seller = AddUser(UserRole.Seller, _agencyA.Id);
+        var service = CreateService(FakeCurrentUser.AgencyAdmin(_agencyA.Id));
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.UpdateAsync(
+            seller.Id, new("Test", "User", seller.Email, UserRole.Client, _agencyA.Id, true)));
+        Assert.Equal(UserRole.Seller, seller.Role);
+    }
+
+    [Fact]
+    public async Task AgencyAdmin_CanStillEditAnExistingClient_WithoutChangingItsRole()
+    {
+        var existing = AddUser(UserRole.Client, _agencyA.Id);
+        var service = CreateService(FakeCurrentUser.AgencyAdmin(_agencyA.Id));
+
+        var updated = await service.UpdateAsync(
+            existing.Id, new("Renamed", "User", existing.Email, UserRole.Client, _agencyA.Id, false));
+
+        Assert.Equal("Renamed", updated.FirstName);
+        Assert.Equal(UserRole.Client, updated.Role);
     }
 
     [Fact]

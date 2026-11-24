@@ -9,7 +9,12 @@ public static class RoleNames
     public const string PlatformAdmin = nameof(Domain.Enums.UserRole.PlatformAdmin);
     public const string AgencyAdmin = nameof(Domain.Enums.UserRole.AgencyAdmin);
     public const string Client = nameof(Domain.Enums.UserRole.Client);
+    public const string Supervisor = nameof(Domain.Enums.UserRole.Supervisor);
+    public const string Seller = nameof(Domain.Enums.UserRole.Seller);
 
     /// <summary>Roles con permiso de administrar usuarios.</summary>
     public const string UserManagers = PlatformAdmin + "," + AgencyAdmin;
+
+    /// <summary>Roles con permiso de administrar el inventario de propiedades.</summary>
+    public const string PropertyManagers = PlatformAdmin + "," + AgencyAdmin + "," + Supervisor + "," + Seller;
 }

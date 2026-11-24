@@ -36,4 +36,15 @@ public sealed class SeedAgency
     public string? Phone { get; init; }
 
     public SeedUser? Admin { get; init; }
+
+    /// <summary>Si es verdadero y la inmobiliaria aún no tiene propiedades, crea un inventario de ejemplo (solo para desarrollo).</summary>
+    public bool SampleProperties { get; init; }
+
+    /// <summary>
+    /// Carpeta con las fotos de las propiedades de ejemplo: una subcarpeta por propiedad (01, 02… en el orden de
+    /// <c>SampleProperties</c>). Las propiedades de ejemplo que no tengan imágenes reciben las de su subcarpeta
+    /// (máximo 10). Si es relativa, cuelga de la carpeta de la aplicación. Solo para desarrollo;
+    /// <c>api/scripts/download-sample-images.ps1</c> la llena.
+    /// </summary>
+    public string? SampleImagesPath { get; init; }
 }

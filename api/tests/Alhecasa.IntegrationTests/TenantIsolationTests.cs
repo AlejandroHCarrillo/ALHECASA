@@ -123,7 +123,7 @@ public sealed class TenantIsolationTests(ApiFactory factory) : IClassFixture<Api
         var b = await CreateTenantAsync("B");
 
         var response = await factory.CreateClientFor(a.Admin)
-            .PostJsonAsync("/api/users", NewUserRequest(UserRole.Client, b.Agency.Id));
+            .PostJsonAsync("/api/users", NewUserRequest(UserRole.AgencyAdmin, b.Agency.Id));
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
@@ -189,13 +189,143 @@ public sealed class TenantIsolationTests(ApiFactory factory) : IClassFixture<Api
         var a = await CreateTenantAsync("A");
         var client = factory.CreateClientFor(a.Admin);
 
-        var response = await client.PostJsonAsync("/api/users", NewUserRequest(UserRole.Client, null));
+        var response = await client.PostJsonAsync("/api/users", NewUserRequest(UserRole.Seller, null));
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var created = await response.ReadAsync<UserDto>();
         Assert.Equal(a.Agency.Id, created.AgencyId);
         Assert.Equal($"/api/users/{created.Id}", response.Headers.Location?.AbsolutePath);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/users/{created.Id}")).StatusCode);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Supervisor)]
+    [InlineData(UserRole.Seller)]
+    public async Task AgencyAdmin_CreatesEmployee_WhoCanLogInButCannotManageUsers(UserRole role)
+    {
+        var a = await CreateTenantAsync("A");
+        var email = $"{Guid.NewGuid():N}@test.local";
+
+        var created = await factory.CreateClientFor(a.Admin)
+            .PostJsonAsync("/api/users", NewUserRequest(role, null, email));
+
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var employee = await created.ReadAsync<UserDto>();
+        Assert.Equal(role, employee.Role);
+        Assert.Equal(a.Agency.Id, employee.AgencyId);
+
+        var client = factory.CreateClient();
+        var login = await client.PostJsonAsync("/api/auth/login", new Alhecasa.Application.Auth.LoginRequest(email, ApiFactory.UserPassword));
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+        var session = await login.ReadAsync<Alhecasa.Application.Auth.LoginResponse>();
+        Assert.Equal(role, session.User.Role);
+        Assert.Equal(a.Agency.Id, session.User.AgencyId);
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", session.AccessToken);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/users")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/agencies")).StatusCode);
+    }
+
+    [Fact]
+    public async Task AgencyAdmin_CreatingClient_Returns403_AndCreatesNothing()
+    {
+        var a = await CreateTenantAsync("A");
+        var email = $"{Guid.NewGuid():N}@test.local";
+        var admin = factory.CreateClientFor(a.Admin);
+
+        var response = await admin.PostJsonAsync("/api/users", NewUserRequest(UserRole.Client, null, email));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var list = await (await admin.GetAsync($"/api/users?search={email}")).ReadAsync<PagedResult<UserDto>>();
+        Assert.Empty(list.Items);
+    }
+
+    [Fact]
+    public async Task AgencyAdmin_ChangingAnEmployeeIntoClient_Returns403()
+    {
+        var a = await CreateTenantAsync("A");
+        var seller = await factory.AddUserAsync(UserRole.Seller, a.Agency.Id);
+        var request = new UpdateUserRequest("Test", "User", seller.Email, UserRole.Client, a.Agency.Id, true);
+
+        var response = await factory.CreateClientFor(a.Admin).PutJsonAsync($"/api/users/{seller.Id}", request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PlatformAdmin_CreatesClient_WhoAppearsInTheAgencyListAndCanLogIn()
+    {
+        var a = await CreateTenantAsync("A");
+        var platformAdmin = await factory.AddUserAsync(UserRole.PlatformAdmin, null);
+        var email = $"{Guid.NewGuid():N}@test.local";
+        var admin = factory.CreateClientFor(a.Admin);
+
+        var created = await factory.CreateClientFor(platformAdmin)
+            .PostJsonAsync("/api/users", NewUserRequest(UserRole.Client, a.Agency.Id, email));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+
+        var list = await (await admin.GetAsync($"/api/users?search={email}")).ReadAsync<Alhecasa.Application.Common.PagedResult<UserDto>>();
+        var listed = Assert.Single(list.Items);
+        Assert.Equal(UserRole.Client, listed.Role);
+        Assert.Equal(a.Agency.Id, listed.AgencyId);
+
+        var client = factory.CreateClient();
+        var login = await client.PostJsonAsync("/api/auth/login", new Alhecasa.Application.Auth.LoginRequest(email, ApiFactory.UserPassword));
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+        var session = await login.ReadAsync<Alhecasa.Application.Auth.LoginResponse>();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", session.AccessToken);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/auth/me")).StatusCode);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Supervisor)]
+    [InlineData(UserRole.Seller)]
+    public async Task AgencyAdmin_CannotCreateEmployee_InAnotherAgency(UserRole role)
+    {
+        var a = await CreateTenantAsync("A");
+        var b = await CreateTenantAsync("B");
+
+        var response = await factory.CreateClientFor(a.Admin)
+            .PostJsonAsync("/api/users", NewUserRequest(role, b.Agency.Id));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PlatformAdmin_CreatingEmployeeWithoutAgency_Returns400()
+    {
+        var platformAdmin = await factory.AddUserAsync(UserRole.PlatformAdmin, null);
+
+        var response = await factory.CreateClientFor(platformAdmin)
+            .PostJsonAsync("/api/users", NewUserRequest(UserRole.Seller, null));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Employees_AreIsolatedByAgency_LikeAnyOtherUser()
+    {
+        var a = await CreateTenantAsync("A");
+        var b = await CreateTenantAsync("B");
+        var sellerOfB = await factory.AddUserAsync(UserRole.Seller, b.Agency.Id);
+
+        var response = await factory.CreateClientFor(a.Admin).GetAsync($"/api/users/{sellerOfB.Id}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task List_CanFilterByEmployeeRole()
+    {
+        var a = await CreateTenantAsync("A");
+        var seller = await factory.AddUserAsync(UserRole.Seller, a.Agency.Id);
+        await factory.AddUserAsync(UserRole.Supervisor, a.Agency.Id);
+
+        var page = await (await factory.CreateClientFor(a.Admin).GetAsync("/api/users?role=Seller"))
+            .ReadAsync<PagedResult<UserDto>>();
+
+        Assert.Equal([seller.Id], page.Items.Select(u => u.Id));
     }
 
     [Fact]
@@ -205,7 +335,7 @@ public sealed class TenantIsolationTests(ApiFactory factory) : IClassFixture<Api
         var b = await CreateTenantAsync("B");
 
         var response = await factory.CreateClientFor(a.Admin)
-            .PostJsonAsync("/api/users", NewUserRequest(UserRole.Client, null, b.Member.Email.ToUpperInvariant()));
+            .PostJsonAsync("/api/users", NewUserRequest(UserRole.Seller, null, b.Member.Email.ToUpperInvariant()));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
@@ -240,7 +370,7 @@ public sealed class TenantIsolationTests(ApiFactory factory) : IClassFixture<Api
             Assert.True(row.IsDeleted);
         });
 
-        var recreated = await client.PostJsonAsync("/api/users", NewUserRequest(UserRole.Client, null, a.Member.Email));
+        var recreated = await client.PostJsonAsync("/api/users", NewUserRequest(UserRole.Seller, null, a.Member.Email));
         Assert.Equal(HttpStatusCode.Created, recreated.StatusCode);
     }
 
@@ -250,8 +380,8 @@ public sealed class TenantIsolationTests(ApiFactory factory) : IClassFixture<Api
         var a = await CreateTenantAsync("A");
         var client = factory.CreateClientFor(a.Admin);
         var marker = Guid.NewGuid().ToString("N")[..8];
-        await client.PostJsonAsync("/api/users", NewUserRequest(UserRole.Client, null, $"{marker}-one@test.local"));
-        await client.PostJsonAsync("/api/users", NewUserRequest(UserRole.Client, null, $"{marker}-two@test.local"));
+        await client.PostJsonAsync("/api/users", NewUserRequest(UserRole.Seller, null, $"{marker}-one@test.local"));
+        await client.PostJsonAsync("/api/users", NewUserRequest(UserRole.Seller, null, $"{marker}-two@test.local"));
 
         var page = await (await client.GetAsync($"/api/users?search={marker}&pageSize=1"))
             .ReadAsync<PagedResult<UserDto>>();

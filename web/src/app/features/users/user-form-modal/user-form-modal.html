@@ -88,7 +88,7 @@
           <label class="label" for="agencyId">
             <span class="label-text">
               Inmobiliaria
-              @if (selectedRole() === 'AgencyAdmin') {
+              @if (agencyRequired()) {
                 <span class="text-error">*</span>
               }
             </span>
@@ -100,7 +100,7 @@
             [class.select-error]="hasError('agencyId')"
           >
             <option value="">
-              {{ selectedRole() === 'AgencyAdmin' ? 'Selecciona una inmobiliaria' : 'Sin inmobiliaria (particular)' }}
+              {{ agencyRequired() ? 'Selecciona una inmobiliaria' : 'Sin inmobiliaria (particular)' }}
             </option>
             @for (agency of agencies(); track agency.id) {
               <option [value]="agency.id">{{ agency.name }}</option>

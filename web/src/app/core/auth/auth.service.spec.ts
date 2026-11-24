@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { UserRole } from '../models/user-role';
 import { AuthService } from './auth.service';
@@ -11,7 +11,16 @@ describe('AuthService', () => {
 
   const setup = () => {
     TestBed.configureTestingModule({
-      providers: [provideRouter([{ path: 'login', children: [] }]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideRouter([
+          { path: 'login', children: [] },
+          { path: 'inicio', children: [] },
+          { path: 'propiedades', children: [] },
+          { path: '', pathMatch: 'full', children: [] },
+        ]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
     http = TestBed.inject(HttpTestingController);
     return TestBed.inject(AuthService);
@@ -47,18 +56,40 @@ describe('AuthService', () => {
     expect(localStorage.getItem('alhecasa.session')).toBeNull();
   });
 
-  it('clears the session on logout', () => {
-    const auth = setup();
+  const signIn = (auth: AuthService) => {
     auth.login({ email: 'a@b.com', password: 'x' }).subscribe();
     http.expectOne(`${environment.apiUrl}/auth/login`).flush({
       accessToken: 'jwt',
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
       user: { id: '1', fullName: 'A', email: 'a@b.com', role: UserRole.Client, agencyId: null, agencyName: null },
     });
+  };
+
+  it('clears the session on logout and goes back to the public landing page, not to the login', async () => {
+    const auth = setup();
+    const router = TestBed.inject(Router);
+    signIn(auth);
+    await router.navigateByUrl('/inicio');
 
     auth.logout();
+    await new Promise((resolve) => setTimeout(resolve));
 
     expect(auth.isAuthenticated()).toBe(false);
     expect(localStorage.getItem('alhecasa.session')).toBeNull();
+    expect(router.url).toBe('/');
+  });
+
+  it('sends an expired session to the login, remembering where the user was', async () => {
+    const auth = setup();
+    const router = TestBed.inject(Router);
+    signIn(auth);
+    await router.navigateByUrl('/inicio');
+
+    auth.expireSession('/propiedades');
+    await new Promise((resolve) => setTimeout(resolve));
+
+    expect(auth.isAuthenticated()).toBe(false);
+    expect(localStorage.getItem('alhecasa.session')).toBeNull();
+    expect(router.url).toBe('/login?returnUrl=%2Fpropiedades');
   });
 });

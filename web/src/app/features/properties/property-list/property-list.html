@@ -1,0 +1,154 @@
+<div class="space-y-4">
+  <div class="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+    <h1 class="text-2xl font-bold">Propiedades</h1>
+    <button type="button" class="btn btn-primary" (click)="openForm(null)">
+      <i class="fa-solid fa-plus" aria-hidden="true"></i>
+      Agregar
+    </button>
+  </div>
+
+  <label class="input input-bordered flex w-full max-w-md items-center gap-2">
+    <i class="fa-solid fa-magnifying-glass text-base-content/50" aria-hidden="true"></i>
+    <input
+      type="search"
+      class="grow"
+      placeholder="Buscar por título, ciudad, colonia o calle"
+      aria-label="Buscar propiedades"
+      maxlength="100"
+      [formControl]="searchControl"
+    />
+  </label>
+
+  @if (listError(); as message) {
+    <app-error-alert [message]="message" (dismissed)="listError.set(null)" />
+  }
+
+  <div class="card bg-base-100 shadow">
+    <div class="overflow-x-auto">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Título</th>
+            <th>Tipo</th>
+            <th>Operación</th>
+            <th class="text-right">Precio</th>
+            <th>Ubicación</th>
+            @if (isPlatformAdmin) {
+              <th>Inmobiliaria</th>
+            }
+            <th>Estado</th>
+            <th class="text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (loading() && !result()) {
+            <tr>
+              <td [attr.colspan]="isPlatformAdmin ? 8 : 7" class="py-8 text-center">
+                <span class="loading loading-spinner loading-md" aria-label="Cargando"></span>
+              </td>
+            </tr>
+          } @else {
+            @for (property of result()?.items; track property.id) {
+              <tr
+                class="hover cursor-pointer"
+                tabindex="0"
+                (click)="openDetail(property)"
+                (keydown.enter)="openDetail(property)"
+              >
+                <td class="max-w-xs truncate font-medium">{{ property.title }}</td>
+                <td>{{ typeLabels[property.type] }}</td>
+                <td>{{ operationLabels[property.operation] }}</td>
+                <td class="whitespace-nowrap text-right">
+                  {{ property.currency }} {{ property.price | number: '1.2-2' }}
+                </td>
+                <td>{{ property.neighborhood ? property.neighborhood + ', ' : '' }}{{ property.city }}, {{ property.state }}</td>
+                @if (isPlatformAdmin) {
+                  <td>{{ property.agencyName ?? '—' }}</td>
+                }
+                <td>
+                  <span class="badge" [class]="statusBadges[property.status]">{{ statusLabels[property.status] }}</span>
+                </td>
+                <td class="text-right">
+                  <div class="inline-flex gap-2">
+                    <div class="tooltip" data-tip="Editar">
+                      <button
+                        type="button"
+                        class="btn btn-warning btn-sm btn-square"
+                        aria-label="Editar propiedad"
+                        (click)="$event.stopPropagation(); openForm(property)"
+                      >
+                        <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                    <div class="tooltip" data-tip="Eliminar">
+                      <button
+                        type="button"
+                        class="btn btn-error btn-sm btn-square"
+                        aria-label="Eliminar propiedad"
+                        (click)="$event.stopPropagation(); askDelete(property)"
+                      >
+                        <i class="fa-solid fa-trash" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td [attr.colspan]="isPlatformAdmin ? 8 : 7" class="py-8 text-center text-base-content/60">
+                  No se encontraron propiedades.
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (result(); as page) {
+      <div class="border-t border-base-200 p-4">
+        <app-paginator
+          [page]="page.page"
+          [pageSize]="pageSize"
+          [totalCount]="page.totalCount"
+          (pageChange)="goToPage($event)"
+        />
+      </div>
+    }
+  </div>
+</div>
+
+@if (showForm()) {
+  <app-property-form-modal
+    [property]="formProperty()"
+    [agencies]="agencies()"
+    (saved)="onSaved($event)"
+    (cancelled)="closeForm()"
+  />
+}
+
+@if (showDetail() && detailProperty(); as property) {
+  <app-property-detail-modal [property]="property" (closed)="closeDetail()" (edit)="editFromDetail()" />
+}
+
+@if (deleteTarget(); as target) {
+  <app-modal title="Eliminar propiedad" boxClass="max-w-md" (closed)="cancelDelete()">
+    <div class="space-y-4">
+      @if (deleteError(); as message) {
+        <app-error-alert [message]="message" (dismissed)="deleteError.set(null)" />
+      }
+      <p>
+        ¿Seguro que deseas eliminar la propiedad <strong>{{ target.title }}</strong>? Dejará de aparecer en el inventario.
+      </p>
+      <div class="modal-action">
+        <button type="button" class="btn" [disabled]="deleting()" (click)="cancelDelete()">Cancelar</button>
+        <button type="button" class="btn btn-error" [disabled]="deleting()" (click)="confirmDelete()">
+          @if (deleting()) {
+            <span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+          }
+          Eliminar
+        </button>
+      </div>
+    </div>
+  </app-modal>
+}

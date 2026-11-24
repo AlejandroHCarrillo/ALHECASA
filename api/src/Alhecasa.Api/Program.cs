@@ -90,6 +90,26 @@ builder.Services.AddRateLimiter(options =>
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0
         }));
+
+    // Catálogo público sin sesión: límite generoso por IP para evitar que lo rastreen en masa.
+    options.AddPolicy("public", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        httpContext.Connection.RemoteIpAddress?.ToString() ?? IPAddress.None.ToString(),
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 120,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
+
+    // Una página del catálogo carga hasta 12 imágenes: el límite es más alto que el del listado.
+    options.AddPolicy("images", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        httpContext.Connection.RemoteIpAddress?.ToString() ?? IPAddress.None.ToString(),
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 600,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
 });
 
 builder.Services.AddOpenApi(options => options.AddDocumentTransformer<BearerSecuritySchemeTransformer>());

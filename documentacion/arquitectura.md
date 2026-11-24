@@ -27,10 +27,13 @@ Reglas de negocio y entidades, sin dependencias externas.
 - `BaseEntity`: `Id` (Guid versión 7, generado en código), auditoría (`CreatedAt`, `UpdatedAt`) y borrado lógico (`IsDeleted`, `DeletedAt`).
 - `User`: persona con acceso. Tiene rol, inmobiliaria opcional, estado activo y último acceso.
 - `Agency`: inmobiliaria. Es el límite de aislamiento de datos (tenant).
-- `UserRole`: `PlatformAdmin`, `AgencyAdmin`, `Client`.
+- `Property`: propiedad del inventario de una inmobiliaria (tenant). Sus invariantes (título, ciudad y estado obligatorios, precio mayor a cero, sin cuartos ni áreas negativos) se validan en el dominio. Por ahora lleva también precio, operación y estado; la estrategia (F0-07) los separa en una publicación (*Listing*).
+- `PropertyImage`: imagen de una propiedad (tenant). Guarda solo metadatos (clave de almacenamiento, tipo, tamaño, orden); el archivo vive en el almacenamiento. `Property` controla la galería (`AddImage`, `RemoveImage`) y su tope de 10.
+- `PropertyType`, `OperationType`, `PropertyStatus`, `CurrencyCode`: enumeraciones guardadas como texto.
+- `UserRole`: `PlatformAdmin`, `AgencyAdmin`, `Supervisor`, `Seller` (vendedor), `Client`. El rol se guarda como texto, así que añadir valores no requirió migración.
 - `DomainException`: violación de una regla del dominio.
 
-**Invariante del dominio** (en `User`): `PlatformAdmin` no pertenece a ninguna inmobiliaria; `AgencyAdmin` siempre pertenece a una; `Client` puede pertenecer a una o ser un anunciante particular (sin inmobiliaria).
+**Invariante del dominio** (en `User`): `PlatformAdmin` no pertenece a ninguna inmobiliaria; `AgencyAdmin`, `Supervisor` y `Seller` (el personal de la inmobiliaria) siempre pertenecen a una; `Client` puede pertenecer a una o ser un anunciante particular (sin inmobiliaria).
 
 Las entidades tienen constructores y setters privados: el estado solo cambia mediante métodos que validan la regla anterior.
 
@@ -97,9 +100,17 @@ Para no revelar qué correos están registrados, el login responde siempre con e
 
 ### Seguridad por defecto
 
-- **Política de autorización por defecto:** todo endpoint exige autenticación, salvo los marcados con `[AllowAnonymous]` (login y `/health`).
+- **Política de autorización por defecto:** todo endpoint exige autenticación, salvo los marcados con `[AllowAnonymous]` (login, `/health` y el catálogo público `/api/public/properties`).
+- **Catálogo público:** es el único lugar donde se lee el inventario sin el filtro por inmobiliaria (`IgnoreQueryFilters`), porque el visitante no tiene una. La visibilidad se define de forma explícita en `PropertyRepository.GetPublishedPagedAsync` (publicada, no eliminada, inmobiliaria activa y no eliminada), el contrato `PublicPropertyDto` omite calle y código postal, y el endpoint tiene límite de 120 solicitudes por minuto por IP.
 - **Roles en los controladores:** `UsersController` y `AgenciesController` exigen `PlatformAdmin` o `AgencyAdmin`.
 - **Límite de intentos:** 10 por minuto por IP en el login.
+- **Imágenes de propiedades (1 a 10, hasta 5 MB cada una):**
+  - *Almacenamiento:* la abstracción `IImageStorage` (Application) se implementa con `LocalImageStorage`, que guarda archivos en `App_Data/images` (opción `Storage:ImagesPath`, fuera de git y fuera de la raíz web, así que nada se sirve directo del disco). Solo acepta las claves que genera el sistema (32 hexadecimales y extensión), de modo que una clave manipulada no puede salir de la carpeta. Para producción se cambia por otra implementación (por ejemplo almacenamiento de objetos) sin tocar el resto.
+  - *Validación:* el formato (JPEG, PNG o WebP) se decide por los primeros bytes del archivo, no por el nombre ni por el `Content-Type` declarado. Se valida todo antes de guardar nada y, si algo falla antes de confirmar en la base, se borran los archivos recién guardados.
+  - *Galería atómica:* `POST /api/properties/{id}/images` agrega y quita en una sola operación, para poder cambiar una foto con la galería llena.
+  - *Regla de publicación:* una propiedad `Published` necesita al menos una imagen. Por eso una propiedad nueva se crea como borrador y se publica después de subir imágenes; el formulario Angular lo encadena (crear, subir, publicar) y, si un paso falla, conserva lo ya guardado para reintentar.
+  - *Entrega pública:* `GET /api/images/{id}` no pide token (las etiquetas `<img>` no lo envían). Es un **enlace secreto**: el guid no se puede adivinar, pero quien lo conoce ve la imagen aunque la propiedad sea un borrador. Es una decisión consciente; si se necesitara privacidad estricta de borradores, habría que servir con URL firmadas o con token. Tiene límite de 600 solicitudes por minuto por IP y caché de un año (`immutable`).
+  - *Pendiente:* no se redimensionan las imágenes ni se les quitan los metadatos EXIF (por ejemplo la ubicación GPS de la foto); no hay reordenamiento (la primera es la portada).
 - **CORS:** lista explícita de orígenes desde configuración; solo los encabezados y métodos necesarios.
 - **Cabeceras:** `X-Content-Type-Options`, `X-Frame-Options` y `Referrer-Policy`. En producción se activan HSTS y la redirección a HTTPS.
 - **Errores:** `ProblemDetails` (RFC 9457). El detalle de un error interno (500) nunca se envía al cliente; solo se registra.
@@ -139,14 +150,17 @@ web/src/app/
 └── features/              Una carpeta por funcionalidad, con carga diferida (lazy)
     ├── auth/login/
     ├── home/
+    ├── landing/           Portada pública con el catálogo de propiedades publicadas
+    ├── properties/        Inventario de propiedades (lista, formulario, detalle)
     └── users/             Lista, modal de alta y edición, modal de detalle, servicios y rutas
 ```
 
 ### Decisiones del frontend
 
-- **Estilos:** Tailwind CSS 4 con DaisyUI 5, e iconos de Font Awesome Free. No se usan otras librerías de UI.
+- **Estilos:** Tailwind CSS 4 con DaisyUI 5, e iconos de Font Awesome Free. No se usan otras librerías de UI. La paleta, las fuentes (Manrope e Inter, servidas desde la propia app) y el logo salen de la [identidad visual](identidad-visual.md), implementada como tema `alhecasa` en `styles.css`.
 - **Rutas con carga diferida** y guards: `authGuard` (exige sesión), `guestGuard` (solo visitantes) y `roleGuard` (exige rol). El menú muestra un ítem solo si el usuario puede abrir esa ruta.
-- **Interceptor HTTP:** añade el token solo a peticiones hacia la API propia (nunca a terceros) y cierra la sesión ante un 401, excepto en el login.
+- **Portada pública en `/`:** la ruta usa `canMatch: [guestMatch]`, así que solo coincide sin sesión; con sesión el enrutador sigue a la ruta siguiente y `/` abre el área de trabajo (`/inicio`). Lista las propiedades publicadas con `GET /api/public/properties` (sin token) y enlaza al login.
+- **Interceptor HTTP:** añade el token solo a peticiones hacia la API propia (nunca a terceros) y cierra la sesión ante un 401, excepto en el login. Cuando el usuario pulsa «Cerrar sesión» vuelve a la portada pública (`/`); cuando la sesión vence (401) va al login, con `returnUrl` para regresar a la pantalla en la que estaba.
 - **Redirección segura tras el login:** solo se aceptan rutas internas (`/ruta`); se rechaza `//host` para evitar redirecciones abiertas.
 - **Catálogo de usuarios:** lista paginada de 10 con búsqueda con debounce de 300 ms. El mismo modal sirve para alta y edición; un clic en la fila abre un modal de detalle de solo lectura. El éxito se muestra en un toast de 3 segundos y los errores en una alerta a todo el ancho con una X.
 - **Modales** con `<dialog>` nativo: el navegador aporta el bloqueo de foco, la tecla Esc y el fondo inerte.
@@ -156,15 +170,18 @@ web/src/app/
 
 ## Permisos
 
-| Operación | `PlatformAdmin` | `AgencyAdmin` | `Client` |
+| Operación | `PlatformAdmin` | `AgencyAdmin` | `Supervisor`, `Seller`, `Client` |
 |---|---|---|---|
 | Ver y listar usuarios | Todos | Solo los de su inmobiliaria | Sin acceso |
-| Crear usuario | Cualquier rol e inmobiliaria | Solo `AgencyAdmin` o `Client`, en su inmobiliaria | Sin acceso |
+| Crear usuario | Cualquier rol e inmobiliaria | `AgencyAdmin`, `Supervisor` o `Seller`, siempre en su inmobiliaria. No puede crear `Client` ni convertir a alguien en `Client` | Sin acceso |
 | Editar usuario | Cualquiera | Solo de su inmobiliaria, nunca un `PlatformAdmin` | Sin acceso |
 | Eliminar usuario | Cualquiera (menos a sí mismo) | Solo de su inmobiliaria (menos a sí mismo) | Sin acceso |
 | Ver inmobiliarias | Todas | Solo la suya | Sin acceso |
+| Ver, crear, editar y eliminar propiedades | Todas (al crear debe elegir inmobiliaria) | Solo las de su inmobiliaria | `Supervisor` y `Seller`: solo las de su inmobiliaria. `Client`: sin acceso |
 
 Nadie puede cambiar su propio rol, desactivarse ni eliminarse.
+
+**Supervisor y Seller:** el administrador de la inmobiliaria los da de alta como empleados. Hoy gestionan por completo las propiedades de su inmobiliaria (un `Seller` también puede editar y eliminar las de sus compañeros: aún no existe la noción de "propiedad asignada a un vendedor"); sus permisos sobre leads y supervisión del equipo se definirán cuando existan esos módulos. Dejar la administración de usuarios solo en `AgencyAdmin` es una decisión deliberada; si un `Supervisor` debe poder dar de alta vendedores, hay que ampliar `RoleNames.UserManagers` y las reglas de `UserService` (que hoy permitirían a un supervisor crear otro `AgencyAdmin`).
 
 ## Pruebas del backend
 
@@ -177,7 +194,7 @@ Dos proyectos en `api/tests`, con xUnit v3 sobre Microsoft.Testing.Platform (act
 
 Decisiones y salvedades:
 
-- **SQLite y no SQL Server** en las pruebas de integración: no dependen de LocalDB ni de una instancia instalada. El esquema se crea desde el modelo de EF (`EnsureCreated`), por lo que **las migraciones de SQL Server no se ejercitan** aquí. La Fase 0 (F0-03) añade pruebas de contrato contra más de un motor.
+- **SQLite y no SQL Server** en las pruebas de integración: no dependen de LocalDB ni de una instancia instalada. El esquema se crea desde el modelo de EF (`EnsureCreated`), por lo que **las migraciones de SQL Server no se ejercitan** aquí. La Fase 0 (F0-03) añade pruebas de contrato contra más de un motor. SQLite no sabe ordenar por `DateTimeOffset`, así que un personalizador de modelo exclusivo de las pruebas (`SqliteModelCustomizer`) lo convierte a binario; el modelo de producción no se toca.
 - Los tokens de prueba se emiten con el generador real (`IJwtTokenGenerator`) sin pasar por el login, que tiene límite de intentos por IP, y el hash de contraseña (PBKDF2, lento a propósito) se calcula una sola vez.
 - Las pruebas de F0-02 se verificaron desactivando la revalidación: fallan las que corresponden (rol, inmobiliaria, desactivación, claims inválidos).
 

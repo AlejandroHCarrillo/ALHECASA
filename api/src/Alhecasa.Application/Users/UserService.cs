@@ -9,8 +9,8 @@ namespace Alhecasa.Application.Users;
 /// <summary>
 /// Reglas de autorización:
 /// - PlatformAdmin: administra usuarios de cualquier inmobiliaria (y particulares).
-/// - AgencyAdmin: solo usuarios de su inmobiliaria; no puede crear PlatformAdmin.
-/// - Client: sin acceso.
+/// - AgencyAdmin: solo usuarios de su inmobiliaria (incluidos sus empleados Supervisor y Seller); no puede crear PlatformAdmin ni Client.
+/// - Supervisor, Seller y Client: sin acceso a la administración de usuarios.
 /// El aislamiento de lectura lo garantiza además el filtro global del repositorio.
 /// </summary>
 public sealed class UserService(
@@ -43,6 +43,7 @@ public sealed class UserService(
         EnsureCanManageUsers();
         await createValidator.ValidateAndThrowAsync(request, cancellationToken);
 
+        EnsureCanAssignRole(request.Role, currentRole: null);
         var agencyId = await ResolveAgencyIdAsync(request.Role, request.AgencyId, cancellationToken);
         var email = EmailNormalizer.Normalize(request.Email);
 
@@ -84,6 +85,7 @@ public sealed class UserService(
             throw new ForbiddenException("You cannot modify a platform administrator.");
         }
 
+        EnsureCanAssignRole(request.Role, user.Role);
         var agencyId = await ResolveAgencyIdAsync(request.Role, request.AgencyId, cancellationToken);
         var email = EmailNormalizer.Normalize(request.Email);
 
@@ -131,6 +133,18 @@ public sealed class UserService(
         if (currentUser.Role is not (UserRole.PlatformAdmin or UserRole.AgencyAdmin))
         {
             throw new ForbiddenException("You do not have permission to manage users.");
+        }
+    }
+
+    /// <summary>
+    /// Un AgencyAdmin administra a su personal, no da de alta clientes: no puede crear un Client
+    /// ni convertir a otro usuario en Client. Sí puede seguir editando a un Client que ya existe sin cambiarle el rol.
+    /// </summary>
+    private void EnsureCanAssignRole(UserRole targetRole, UserRole? currentRole)
+    {
+        if (!currentUser.IsPlatformAdmin && targetRole == UserRole.Client && currentRole != UserRole.Client)
+        {
+            throw new ForbiddenException("You cannot create client users.");
         }
     }
 

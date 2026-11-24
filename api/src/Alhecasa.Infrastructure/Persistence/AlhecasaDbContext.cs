@@ -14,6 +14,10 @@ public sealed class AlhecasaDbContext(
 
     public DbSet<Agency> Agencies => Set<Agency>();
 
+    public DbSet<Property> Properties => Set<Property>();
+
+    public DbSet<PropertyImage> PropertyImages => Set<PropertyImage>();
+
     // Propiedades del contexto usadas por los filtros globales: EF las evalúa en cada consulta
     // con los valores del usuario de la solicitud actual.
     private bool CurrentIsPlatformAdmin => currentUser.IsPlatformAdmin;
@@ -37,6 +41,16 @@ public sealed class AlhecasaDbContext(
             && (CurrentIsPlatformAdmin
                 || u.Id == CurrentUserId
                 || (CurrentAgencyId != null && u.AgencyId == CurrentAgencyId)));
+
+        // Cada inmobiliaria ve únicamente su inventario; el administrador de plataforma ve todo.
+        modelBuilder.Entity<Property>().HasQueryFilter(p =>
+            !p.IsDeleted
+            && (CurrentIsPlatformAdmin || (CurrentAgencyId != null && p.AgencyId == CurrentAgencyId)));
+
+        // Mismo aislamiento para las imágenes, por la columna AgencyId (sin depender del filtro de Property).
+        modelBuilder.Entity<PropertyImage>().HasQueryFilter(i =>
+            !i.IsDeleted
+            && (CurrentIsPlatformAdmin || (CurrentAgencyId != null && i.AgencyId == CurrentAgencyId)));
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

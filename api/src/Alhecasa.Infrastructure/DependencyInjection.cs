@@ -3,6 +3,7 @@ using Alhecasa.Infrastructure.Identity;
 using Alhecasa.Infrastructure.Persistence;
 using Alhecasa.Infrastructure.Persistence.Repositories;
 using Alhecasa.Infrastructure.Persistence.Seeding;
+using Alhecasa.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,6 +32,10 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AlhecasaDbContext>());
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IAgencyRepository, AgencyRepository>();
+        services.AddScoped<IPropertyRepository, PropertyRepository>();
+
+        services.AddOptions<StorageOptions>().Bind(configuration.GetSection(StorageOptions.SectionName));
+        services.AddSingleton<IImageStorage, LocalImageStorage>();
 
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();

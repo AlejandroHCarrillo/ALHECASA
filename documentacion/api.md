@@ -16,16 +16,25 @@ Referencia de los endpoints de la API de ALHECASA. Para instalar y ejecutar, con
 | `GET` | `/health` | Público | Estado del servicio |
 | `POST` | `/api/auth/login` | Público (10 intentos por minuto por IP) | Iniciar sesión |
 | `GET` | `/api/auth/me` | Autenticado | Usuario de la sesión |
+| `GET` | `/api/public/properties` | Público (120 solicitudes por minuto por IP) | Propiedades publicadas, para la portada de visitantes |
 | `GET` | `/api/users` | `PlatformAdmin`, `AgencyAdmin` | Lista paginada con búsqueda y filtros |
 | `GET` | `/api/users/{id}` | `PlatformAdmin`, `AgencyAdmin` | Detalle de un usuario |
 | `POST` | `/api/users` | `PlatformAdmin`, `AgencyAdmin` | Crear usuario |
 | `PUT` | `/api/users/{id}` | `PlatformAdmin`, `AgencyAdmin` | Actualizar usuario |
 | `DELETE` | `/api/users/{id}` | `PlatformAdmin`, `AgencyAdmin` | Eliminar usuario (borrado lógico) |
 | `GET` | `/api/agencies` | `PlatformAdmin`, `AgencyAdmin` | Inmobiliarias visibles para el usuario |
+| `GET` | `/api/properties` | `PlatformAdmin`, `AgencyAdmin`, `Supervisor`, `Seller` | Inventario paginado con búsqueda |
+| `GET` | `/api/properties/{id}` | Los mismos | Detalle de una propiedad |
+| `POST` | `/api/properties` | Los mismos | Crear propiedad |
+| `PUT` | `/api/properties/{id}` | Los mismos | Actualizar propiedad |
+| `GET` | `/api/public/properties/{id}` | Público (120 solicitudes por minuto por IP) | Detalle de una propiedad publicada, con todas sus imágenes |
+| `POST` | `/api/properties/{id}/images` | Los mismos | Cambiar la galería: subir y quitar imágenes (1 a 10 por propiedad) |
+| `DELETE` | `/api/properties/{id}` | Los mismos | Eliminar propiedad (borrado lógico) |
+| `GET` | `/api/images/{id}` | Público (600 solicitudes por minuto por IP) | Archivo de una imagen de propiedad |
 
 ## Autenticación
 
-Todos los endpoints, salvo `/health` y `/api/auth/login`, exigen el encabezado:
+Todos los endpoints, salvo `/health`, `/api/auth/login` y `/api/public/*`, exigen el encabezado:
 
 ```
 Authorization: Bearer <accessToken>
@@ -43,7 +52,11 @@ El token se obtiene en el login y vence a los 60 minutos. Sin token, con token i
 |---|---|
 | `PlatformAdmin` | Administrador de la plataforma. No pertenece a ninguna inmobiliaria. Ve y gestiona todo. |
 | `AgencyAdmin` | Administrador de una inmobiliaria. Siempre pertenece a una. Solo ve y gestiona la suya. |
+| `Supervisor` | Empleado de una inmobiliaria que coordina al equipo de vendedores. Siempre pertenece a una. Por ahora no administra usuarios; sí gestiona propiedades. |
+| `Seller` | Vendedor: empleado de una inmobiliaria. Siempre pertenece a una. Por ahora no administra usuarios; sí gestiona propiedades. |
 | `Client` | Anunciante particular (sin inmobiliaria) o usuario de una inmobiliaria. Sin acceso a los endpoints de administración. |
+
+`Supervisor` y `Seller` los da de alta el `AgencyAdmin` (o el `PlatformAdmin`) con `POST /api/users`. Inician sesión como cualquier otro usuario y tienen acceso a los endpoints de propiedades y a los que no exigen rol (por ejemplo `GET /api/auth/me`); los permisos de leads y de supervisión del equipo se definirán cuando existan esos módulos.
 
 ---
 
@@ -129,7 +142,7 @@ Lista usuarios con paginación. Ordena por nombre, apellidos e identificador. Ex
 | Parámetro | Tipo | Por defecto | Descripción |
 |---|---|---|---|
 | `search` | string | | Busca en nombre, apellidos y correo (coincidencia parcial) |
-| `role` | `PlatformAdmin` \| `AgencyAdmin` \| `Client` | | Filtra por rol. Un valor inválido responde `400`. |
+| `role` | `PlatformAdmin` \| `AgencyAdmin` \| `Supervisor` \| `Seller` \| `Client` | | Filtra por rol. Un valor inválido responde `400`. |
 | `isActive` | boolean | | Filtra por estado |
 | `page` | entero | `1` | Página (valores menores de 1 se tratan como 1) |
 | `pageSize` | entero | `10` | Tamaño de página, entre 1 y **100** (valores mayores se limitan a 100) |
@@ -168,7 +181,7 @@ Crea un usuario.
 | `lastName` | string | Obligatorio, máximo 100 |
 | `email` | string | Obligatorio, formato válido, máximo 256, único entre usuarios no eliminados |
 | `password` | string | Obligatorio, de 10 a 128 caracteres, con al menos una mayúscula, una minúscula y un número |
-| `role` | `PlatformAdmin` \| `AgencyAdmin` \| `Client` | Obligatorio |
+| `role` | `PlatformAdmin` \| `AgencyAdmin` \| `Supervisor` \| `Seller` \| `Client` | Obligatorio |
 | `agencyId` | Guid \| null | Ver reglas de inmobiliaria |
 
 ```json
@@ -186,8 +199,8 @@ Crea un usuario.
 
 | Quien crea | Comportamiento |
 |---|---|
-| `PlatformAdmin` | Elige libremente. `AgencyAdmin` exige `agencyId`; `Client` puede ir sin `agencyId` (particular); `PlatformAdmin` ignora `agencyId` y queda sin inmobiliaria. |
-| `AgencyAdmin` | El usuario queda siempre en la inmobiliaria del que crea. No puede crear un `PlatformAdmin` (`403`) ni indicar otra inmobiliaria (`403`). |
+| `PlatformAdmin` | Elige libremente. `AgencyAdmin`, `Supervisor` y `Seller` exigen `agencyId` (sin él, `400`); `Client` puede ir sin `agencyId` (particular); `PlatformAdmin` ignora `agencyId` y queda sin inmobiliaria. |
+| `AgencyAdmin` | El usuario (incluidos sus empleados `Supervisor` y `Seller`) queda siempre en la inmobiliaria del que crea, aunque no envíe `agencyId`. No puede crear un `PlatformAdmin` ni un `Client` (`403`), ni indicar otra inmobiliaria (`403`). Los clientes los da de alta solo el `PlatformAdmin`. |
 
 **Respuesta `201`:** objeto `User`, con el encabezado `Location` apuntando a `GET /api/users/{id}`.
 
@@ -204,14 +217,14 @@ Actualiza un usuario. Reemplaza todos los campos listados; no cambia la contrase
 | `firstName` | string | Obligatorio, máximo 100 |
 | `lastName` | string | Obligatorio, máximo 100 |
 | `email` | string | Obligatorio, formato válido, máximo 256, único |
-| `role` | `PlatformAdmin` \| `AgencyAdmin` \| `Client` | Obligatorio |
+| `role` | `PlatformAdmin` \| `AgencyAdmin` \| `Supervisor` \| `Seller` \| `Client` | Obligatorio |
 | `agencyId` | Guid \| null | Mismas reglas que al crear |
 | `isActive` | boolean | Estado del usuario |
 
 **Restricciones**
 
 - Nadie puede cambiar **su propio rol** ni **desactivar su propia cuenta** (`403`).
-- Un `AgencyAdmin` no puede mover usuarios a otra inmobiliaria (`403`) ni asignar el rol `PlatformAdmin` (`403`). Los usuarios de otras inmobiliarias y los `PlatformAdmin` no le son visibles, así que recibe `404`.
+- Un `AgencyAdmin` no puede mover usuarios a otra inmobiliaria (`403`) ni asignar el rol `PlatformAdmin` (`403`). Tampoco puede convertir a un usuario en `Client` (`403`); sí puede seguir editando (o desactivar) a un `Client` que ya existe, siempre que no le cambie el rol. Los usuarios de otras inmobiliarias y los `PlatformAdmin` no le son visibles, así que recibe `404`.
 
 **Respuesta `200`:** objeto `User` actualizado.
 
@@ -246,6 +259,111 @@ Lista las inmobiliarias visibles para el usuario: todas para `PlatformAdmin`, so
   }
 ]
 ```
+
+---
+
+## Propiedades
+
+Inventario de propiedades que administra una inmobiliaria. Acceso: `PlatformAdmin`, `AgencyAdmin`, `Supervisor` y `Seller`. Cada propiedad pertenece a una inmobiliaria y el personal solo ve las suyas; una propiedad de otra inmobiliaria responde `404`, no `403`.
+
+> **Simplificación del MVP:** `price`, `currency`, `operation` y `status` viven en la propiedad. La estrategia (F0-07) los separa en una entidad de publicación (*Listing*) para poder tener varias operaciones por propiedad; cuando llegue, este contrato cambiará.
+
+### Objeto `Property`
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `id`, `agencyId`, `agencyName` | guid, guid, texto o `null` | |
+| `title` | texto | Obligatorio, máx. 150 |
+| `description` | texto o `null` | Máx. 2000 |
+| `type` | texto | `House`, `Apartment`, `Land`, `Commercial`, `Office` |
+| `operation` | texto | `Sale`, `Rent` |
+| `status` | texto | `Draft` (por defecto), `Published`, `Paused`, `Closed` |
+| `price` | número | Obligatorio, mayor a 0, máx. 9,999,999,999,999.99 |
+| `currency` | texto | `MXN` (por defecto), `USD` |
+| `street`, `neighborhood`, `city`, `state`, `postalCode` | texto | `city` y `state` obligatorios. Máx. 200, 100, 100, 100 y 10 |
+| `bedrooms`, `bathrooms` | entero o `null` | 0 a 50 |
+| `constructionArea`, `landArea` | número o `null` | m², 0 a 99,999,999.99 |
+| `imageIds` | lista de guid | Imágenes en orden de galería; la primera es la portada. Se piden con `GET /api/images/{id}` |
+| `createdAt`, `updatedAt` | fecha | |
+
+### `GET /api/properties`
+
+Parámetros: `search` (opcional; busca en título, ciudad, colonia y calle), `page` (por defecto 1) y `pageSize` (por defecto 10, máximo 100). Orden: más recientes primero. Respuesta `200` con la misma forma paginada que `/api/users` (`items`, `page`, `pageSize`, `totalCount`, `totalPages`).
+
+### `GET /api/properties/{id}`
+
+Respuesta `200` con el objeto `Property`. `404` si no existe o es de otra inmobiliaria.
+
+### `POST /api/properties`
+
+Cuerpo: todos los campos editables del objeto `Property` más `agencyId`. **No se puede crear una propiedad ya `Published`** (`400`): aún no tiene imágenes. El flujo es crearla como `Draft`, subir las imágenes y después publicarla con `PUT`.
+
+- Personal de inmobiliaria: `agencyId` se omite (se usa la suya); si envía otra inmobiliaria, `403`.
+- `PlatformAdmin`: `agencyId` es obligatorio (`400` si falta) y la inmobiliaria debe existir (`404`).
+
+**Respuesta `201`:** objeto `Property`, con `Location` hacia `GET /api/properties/{id}`. **Errores:** `400` (validación), `403`, `404`.
+
+### `PUT /api/properties/{id}`
+
+Mismos campos que el alta, sin `agencyId`: una propiedad no cambia de inmobiliaria. Pasar a `Published` una propiedad sin imágenes responde `400`. **Errores:** `400`, `404`.
+
+### `POST /api/properties/{id}/images`
+
+Cambia la galería en **una sola operación**: agrega imágenes nuevas y quita otras, para poder reemplazar una foto aunque la galería ya tenga 10. Cuerpo `multipart/form-data`:
+
+| Campo | Descripción |
+|---|---|
+| `files` | Cero o más archivos (repetir el campo). Se agregan al final de la galería, en el orden recibido. |
+| `removeImageIds` | Cero o más guid de imágenes actuales de esa propiedad que se quitan (repetir el campo). |
+
+Reglas:
+
+- Al terminar, la propiedad debe tener **como máximo 10** imágenes. Una propiedad `Published` debe conservar **al menos 1**.
+- Cada archivo: no vacío, de **hasta 5 MB**, y **JPEG, PNG o WebP**. El formato se detecta por el contenido del archivo (sus primeros bytes), no por el nombre ni por el `Content-Type` que declare el cliente: un archivo renombrado a `.jpg` se rechaza.
+- Es todo o nada: si un archivo no es válido o se rebasa algún límite, no se guarda nada.
+- La solicitud completa admite hasta unos 51 MB.
+
+**Respuesta `200`:** objeto `Property` con `imageIds` actualizado. **Errores:** `400` (límites, formato o imagen que no es de la propiedad), `401`, `403`, `404` (propiedad inexistente o de otra inmobiliaria).
+
+### `GET /api/images/{id}`
+
+Entrega el archivo de una imagen. **No requiere token**: las etiquetas `<img>` del navegador no lo envían. La dirección es un guid que no se puede adivinar, así que funciona como un enlace secreto: quien la conoce puede ver la imagen **aunque la propiedad aún sea un borrador** o esté pausada. Si la propiedad se elimina, responde `404`.
+
+Respuesta `200` con el tipo de la imagen, `Cache-Control: public, max-age=31536000, immutable` (una imagen nunca cambia: reemplazarla crea otra con otro id) y `X-Content-Type-Options: nosniff`. `404` si no existe. Límite: 600 solicitudes por minuto por IP.
+
+### `DELETE /api/properties/{id}`
+
+Eliminación **lógica**. **Respuesta `204`.** **Error:** `404`.
+
+---
+
+## Catálogo público
+
+### `GET /api/public/properties`
+
+Alimenta la portada que ve quien no ha iniciado sesión. **No requiere token.** Muestra las propiedades de **todas** las inmobiliarias que cumplen estas reglas: estado `Published`, no eliminadas y de una inmobiliaria activa y no eliminada. Los borradores, pausadas y cerradas nunca aparecen.
+
+Parámetros, todos opcionales y combinables (se aplican con «y»):
+
+| Parámetro | Valores | Descripción |
+|---|---|---|
+| `operation` | `Sale` \| `Rent` | Solo venta o solo renta. Un valor inválido responde `400`. |
+| `type` | `House` \| `Apartment` \| `Land` \| `Commercial` \| `Office` | Tipo de inmueble. Un valor inválido responde `400`. |
+| `location` | texto | Debe aparecer en la colonia, la ciudad o el estado (sin distinguir mayúsculas). No busca en el título ni en la calle. |
+| `page` | entero | Por defecto 1 |
+| `pageSize` | entero | Por defecto 10, máximo 100 |
+
+Orden: más recientes primero. La respuesta tiene la misma forma paginada que las demás listas.
+
+**Ejemplo:** `GET /api/public/properties?operation=Rent&type=Apartment&location=roma`
+
+Cada elemento de `items` trae solo datos públicos: `id`, `title`, `description`, `type`, `operation`, `price`, `currency`, `neighborhood`, `city`, `state`, `bedrooms`, `bathrooms`, `constructionArea`, `landArea`, `imageIds` (la primera es la portada) y `agencyName`. **No incluye** la calle ni el código postal (la dirección exacta se da al contactar), ni el estado, ni identificadores de la inmobiliaria.
+
+Límite: 120 solicitudes por minuto por IP (`429` al excederlo).
+
+### `GET /api/public/properties/{id}`
+
+Detalle de una propiedad para la página de la publicación. **No requiere token.** Devuelve el mismo objeto público que cada elemento de la lista (con `imageIds` completo, en orden de galería) y aplica las **mismas reglas de visibilidad**: solo `Published`, no eliminada y de una inmobiliaria activa. Un borrador, una propiedad pausada, cerrada o eliminada, o un id desconocido responden `404` (no se distingue el motivo). Mismo límite de solicitudes que el listado.
 
 ---
 

@@ -23,6 +23,25 @@ public sealed class UserTests
         Assert.Throws<DomainException>(() => NewUser(UserRole.AgencyAdmin, null));
     }
 
+    [Theory]
+    [InlineData(UserRole.Supervisor)]
+    [InlineData(UserRole.Seller)]
+    public void AgencyStaff_WithoutAgency_IsRejected(UserRole role)
+    {
+        Assert.Throws<DomainException>(() => NewUser(role, null));
+    }
+
+    [Theory]
+    [InlineData(UserRole.Supervisor)]
+    [InlineData(UserRole.Seller)]
+    public void AgencyStaff_WithAgency_IsAccepted(UserRole role)
+    {
+        var user = NewUser(role, AgencyId);
+
+        Assert.Equal(role, user.Role);
+        Assert.Equal(AgencyId, user.AgencyId);
+    }
+
     [Fact]
     public void PlatformAdmin_WithoutAgency_IsAccepted()
     {
