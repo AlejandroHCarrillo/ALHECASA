@@ -56,10 +56,28 @@
         </select>
       </div>
 
-      <button type="submit" class="btn btn-primary btn-sm col-span-2 lg:col-span-1" [disabled]="loading()">
-        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-        Buscar
-      </button>
+      <div class="col-span-2 flex gap-2 lg:col-span-1">
+        <button
+          type="button"
+          class="btn btn-sm flex-1 gap-2 lg:flex-none"
+          [class.btn-outline]="!filterForm.controls.favoritesOnly.value"
+          [class.btn-error]="filterForm.controls.favoritesOnly.value"
+          [attr.aria-pressed]="filterForm.controls.favoritesOnly.value"
+          [disabled]="loading()"
+          (click)="toggleFavorites()"
+        >
+          <i class="fa-heart" [class.fa-solid]="filterForm.controls.favoritesOnly.value" [class.fa-regular]="!filterForm.controls.favoritesOnly.value" aria-hidden="true"></i>
+          Mis favoritas
+          @if (likesCount() > 0) {
+            <span class="badge badge-sm" data-testid="favorites-count">{{ likesCount() }}</span>
+          }
+        </button>
+
+        <button type="submit" class="btn btn-primary btn-sm flex-1 lg:flex-none" [disabled]="loading()">
+          <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+          Buscar
+        </button>
+      </div>
     </div>
   </form>
 
@@ -139,7 +157,9 @@
           @if (result()?.items?.length) {
             <ul class="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3" [class.opacity-60]="loading()">
               @for (property of result()?.items; track property.id) {
-                <li class="card overflow-hidden rounded-box border border-base-300 bg-base-100">
+                <li class="card relative overflow-hidden rounded-box border border-base-300 bg-base-100">
+                  <!-- Fuera del enlace de la foto: un botón dentro de un enlace no es válido ni accesible. -->
+                  <app-like-button class="absolute right-2 top-2 z-10" [propertyId]="property.id" [title]="property.title" />
                   <a
                     [routerLink]="['/publicaciones', property.id]"
                     class="block"
@@ -231,7 +251,11 @@
             }
           } @else if (!error()) {
             <p class="rounded-box bg-base-200 p-8 text-center text-base-content/70">
-              @if (hasFilters()) {
+              @if (applied().favoritesOnly && likesCount() === 0) {
+                Todavía no marcas ninguna propiedad. Toca el corazón de una publicación para guardarla aquí.
+              } @else if (applied().favoritesOnly) {
+                Ninguna de tus favoritas coincide con los filtros, o ya no está publicada. Quita algún filtro para ver más.
+              } @else if (hasFilters()) {
                 No hay propiedades que coincidan con los filtros. Prueba con otra ubicación o quita algún filtro.
               } @else {
                 Todavía no hay propiedades publicadas.

@@ -69,6 +69,13 @@ internal sealed class PropertyRepository(AlhecasaDbContext db) : IPropertyReposi
     {
         var source = VisiblePublicly();
 
+        if (query.Ids is { Count: > 0 })
+        {
+            // La visibilidad (publicada, no borrada…) ya está aplicada: un id de un borrador simplemente no aparece.
+            var ids = query.Ids.ToArray();
+            source = source.Where(p => ids.Contains(p.Id));
+        }
+
         if (query.Operation is not null)
         {
             source = source.Where(p => p.Operation == query.Operation);

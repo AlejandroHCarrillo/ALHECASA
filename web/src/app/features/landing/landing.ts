@@ -4,8 +4,10 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Subject, catchError, of, switchMap, tap } from 'rxjs';
+import { LikesService } from '../../core/likes/likes.service';
 import { USER_ROLE_LABELS, UserRole } from '../../core/models/user-role';
 import { ErrorAlert } from '../../shared/components/error-alert/error-alert';
+import { LikeButton } from '../../shared/components/like-button/like-button';
 import { Logo } from '../../shared/components/logo/logo';
 import { Paginator } from '../../shared/components/paginator/paginator';
 import { PagedResult } from '../../shared/models/paged-result';
@@ -25,13 +27,14 @@ interface Step {
 /** Portada pública: solo para quien no ha iniciado sesión. Muestra las propiedades publicadas y lleva al login. */
 @Component({
   selector: 'app-landing',
-  imports: [ReactiveFormsModule, RouterLink, DecimalPipe, ErrorAlert, Logo, Paginator],
+  imports: [ReactiveFormsModule, RouterLink, DecimalPipe, ErrorAlert, LikeButton, Logo, Paginator],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './landing.html',
 })
 export class Landing {
   private readonly fb = inject(FormBuilder).nonNullable;
   private readonly publicProperties = inject(PublicPropertiesService);
+  private readonly likes = inject(LikesService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly pageSize = PAGE_SIZE;
@@ -46,13 +49,17 @@ export class Landing {
     operation: ['' as PublicPropertyFilters['operation']],
     location: [''],
     type: ['' as PublicPropertyFilters['type']],
+    favoritesOnly: [false],
   });
+
+  /** Cantidad de publicaciones con «me gusta», para el botón «Mis favoritas». */
+  protected readonly likesCount = this.likes.count;
 
   /** Filtros que se están aplicando a la lista (los del formulario solo cuentan al pulsar «Buscar»). */
   protected readonly applied = signal<PublicPropertyFilters>(NO_FILTERS);
   protected readonly hasFilters = computed(() => {
     const f = this.applied();
-    return f.operation !== '' || f.type !== '' || f.location.trim() !== '';
+    return f.operation !== '' || f.type !== '' || f.location.trim() !== '' || f.favoritesOnly;
   });
 
   protected readonly result = signal<PagedResult<PublicProperty> | null>(null);
@@ -86,14 +93,23 @@ export class Landing {
           this.loading.set(true);
           this.error.set(null);
         }),
-        switchMap(() =>
-          this.publicProperties.getPaged(this.applied(), this.page, PAGE_SIZE).pipe(
+        switchMap(() => {
+          const filters = this.applied();
+          // Los «me gusta» viven en el navegador: se piden a la API por identificador.
+          const ids = filters.favoritesOnly ? this.likes.ids() : null;
+
+          // Sin favoritas no se consulta: una lista vacía de ids significaría «sin filtro» y devolvería todo.
+          if (ids !== null && ids.length === 0) {
+            return of<PagedResult<PublicProperty>>({ items: [], page: 1, pageSize: PAGE_SIZE, totalCount: 0, totalPages: 0 });
+          }
+
+          return this.publicProperties.getPaged(filters, this.page, PAGE_SIZE, ids).pipe(
             catchError((err: unknown) => {
               this.error.set(resolveApiError(err));
               return of(null);
             }),
-          ),
-        ),
+          );
+        }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((result) => {
@@ -114,7 +130,14 @@ export class Landing {
   }
 
   protected clearFilters(): void {
-    this.filterForm.reset({ operation: '', location: '', type: '' });
+    this.filterForm.reset({ operation: '', location: '', type: '', favoritesOnly: false });
+    this.search();
+  }
+
+  /** «Mis favoritas» se aplica al momento, junto con lo que ya esté elegido en el formulario. */
+  protected toggleFavorites(): void {
+    const control = this.filterForm.controls.favoritesOnly;
+    control.setValue(!control.value);
     this.search();
   }
 

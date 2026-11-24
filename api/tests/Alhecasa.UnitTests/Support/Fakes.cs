@@ -94,7 +94,9 @@ internal sealed class FakePropertyRepository : IPropertyRepository
 
     public Task<PagedResult<Property>> GetPublishedPagedAsync(PublicPropertyQuery query, CancellationToken cancellationToken = default)
     {
-        var items = Items.Where(p => !p.IsDeleted && p.Status == PropertyStatus.Published).ToList();
+        var items = Items
+            .Where(p => !p.IsDeleted && p.Status == PropertyStatus.Published && (query.Ids is null || query.Ids.Contains(p.Id)))
+            .ToList();
         return Task.FromResult(new PagedResult<Property>(items, query.Page, query.PageSize, items.Count));
     }
 

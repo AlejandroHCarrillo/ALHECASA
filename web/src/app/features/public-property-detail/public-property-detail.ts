@@ -7,6 +7,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { catchError, map, of, switchMap, tap } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { ErrorAlert } from '../../shared/components/error-alert/error-alert';
+import { LikeButton } from '../../shared/components/like-button/like-button';
 import { Logo } from '../../shared/components/logo/logo';
 import { resolveApiError } from '../../shared/utils/api-error';
 import { imageUrl } from '../../shared/utils/image-url';
@@ -19,7 +20,7 @@ import { OPERATION_LABELS, PROPERTY_TYPE_LABELS } from '../properties/property.m
  */
 @Component({
   selector: 'app-public-property-detail',
-  imports: [RouterLink, DecimalPipe, ErrorAlert, Logo],
+  imports: [RouterLink, DecimalPipe, ErrorAlert, LikeButton, Logo],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './public-property-detail.html',
 })

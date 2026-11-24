@@ -31,9 +31,11 @@ export interface PublicPropertyFilters {
   operation: OperationType | '';
   location: string;
   type: PropertyType | '';
+  /** Solo las publicaciones con «me gusta». Es un filtro de la portada: no viaja a la API como tal (ver `ids` en `getPaged`). */
+  favoritesOnly: boolean;
 }
 
-export const NO_FILTERS: PublicPropertyFilters = { operation: '', location: '', type: '' };
+export const NO_FILTERS: PublicPropertyFilters = { operation: '', location: '', type: '', favoritesOnly: false };
 
 @Injectable({ providedIn: 'root' })
 export class PublicPropertiesService {
@@ -45,8 +47,20 @@ export class PublicPropertiesService {
     return this.http.get<PublicProperty>(`${this.url}/${id}`);
   }
 
-  getPaged(filters: PublicPropertyFilters, page: number, pageSize: number): Observable<PagedResult<PublicProperty>> {
+  /**
+   * @param ids Si se indica, la API solo devuelve esas publicaciones (las que sigan publicadas). Un arreglo vacío
+   *   no se envía, y entonces la API no filtra por identificador: quien llama debe evitar pedir «favoritas» sin ninguna.
+   */
+  getPaged(
+    filters: PublicPropertyFilters,
+    page: number,
+    pageSize: number,
+    ids: readonly string[] | null = null,
+  ): Observable<PagedResult<PublicProperty>> {
     let params = new HttpParams().set('page', page).set('pageSize', pageSize);
+    for (const id of ids ?? []) {
+      params = params.append('ids', id);
+    }
     if (filters.operation) {
       params = params.set('operation', filters.operation);
     }

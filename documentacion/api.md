@@ -350,6 +350,7 @@ Parámetros, todos opcionales y combinables (se aplican con «y»):
 | `operation` | `Sale` \| `Rent` | Solo venta o solo renta. Un valor inválido responde `400`. |
 | `type` | `House` \| `Apartment` \| `Land` \| `Commercial` \| `Office` | Tipo de inmueble. Un valor inválido responde `400`. |
 | `location` | texto | Debe aparecer en la colonia, la ciudad o el estado (sin distinguir mayúsculas). No busca en el título ni en la calle. |
+| `ids` | guid, repetible | Solo estas propiedades (`?ids=<guid>&ids=<guid>`), siempre que además estén publicadas: un id de un borrador, de una propiedad pausada o eliminada, o desconocido simplemente no aparece. Lo usa «Mis favoritas» de la portada, cuyos `me gusta` se guardan en el navegador. Máximo **100** ids (`400` si se envían más); un valor que no sea guid responde `400`. Se combina con los demás filtros y con la paginación. |
 | `page` | entero | Por defecto 1 |
 | `pageSize` | entero | Por defecto 10, máximo 100 |
 

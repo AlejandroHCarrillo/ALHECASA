@@ -1,5 +1,6 @@
 using Alhecasa.Application.Abstractions;
 using Alhecasa.Application.Common;
+using Alhecasa.Domain.Common;
 using Alhecasa.Domain.Entities;
 using Alhecasa.Domain.Enums;
 
@@ -32,21 +33,30 @@ public sealed record ImageContent(Stream Content, string ContentType);
 
 /// <summary>Filtros del catálogo público. Todos son opcionales y se combinan con «y».</summary>
 /// <param name="Location">Texto que debe aparecer en la colonia, la ciudad o el estado.</param>
+/// <param name="Ids">
+/// Si se envía, solo se devuelven estas propiedades (siempre que además estén publicadas). Lo usa la portada para
+/// «Mis favoritas», que el visitante guarda en su navegador. Vacío equivale a no filtrar por identificador.
+/// </param>
 public sealed record PublicPropertyQuery(
     string? Location = null,
     PropertyType? Type = null,
     OperationType? Operation = null,
     int Page = 1,
-    int PageSize = 10)
+    int PageSize = 10,
+    IReadOnlyList<Guid>? Ids = null)
 {
     public const int MaxPageSize = PropertyListQuery.MaxPageSize;
 
-    /// <summary>Devuelve una copia con la ubicación limpia y la paginación acotada a valores seguros.</summary>
+    /// <summary>Máximo de identificadores por solicitud: van en la dirección, que tiene un tamaño límite.</summary>
+    public const int MaxIds = 100;
+
+    /// <summary>Devuelve una copia con la ubicación limpia, los identificadores sin repetir y la paginación acotada a valores seguros.</summary>
     public PublicPropertyQuery Normalize() => this with
     {
         Location = string.IsNullOrWhiteSpace(Location) ? null : Location.Trim(),
         Page = Math.Max(1, Page),
-        PageSize = Math.Clamp(PageSize, 1, MaxPageSize)
+        PageSize = Math.Clamp(PageSize, 1, MaxPageSize),
+        Ids = Ids is { Count: > 0 } ? Ids.Distinct().ToList() : null
     };
 }
 
@@ -70,7 +80,13 @@ public sealed class PublicPropertyService(IPropertyRepository properties, IImage
 {
     public async Task<PagedResult<PublicPropertyDto>> GetPublishedAsync(PublicPropertyQuery query, CancellationToken cancellationToken = default)
     {
-        var page = await properties.GetPublishedPagedAsync(query.Normalize(), cancellationToken);
+        var normalized = query.Normalize();
+        if (normalized.Ids?.Count > PublicPropertyQuery.MaxIds)
+        {
+            throw new DomainException($"At most {PublicPropertyQuery.MaxIds} ids can be requested at once.");
+        }
+
+        var page = await properties.GetPublishedPagedAsync(normalized, cancellationToken);
         return page.Map(ToDto);
     }
 

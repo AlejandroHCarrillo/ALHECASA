@@ -42,7 +42,10 @@
             </span>
             <span class="badge badge-ghost">{{ typeLabels[p.type] }}</span>
           </div>
-          <h1 class="text-3xl font-extrabold leading-tight">{{ p.title }}</h1>
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <h1 class="text-3xl font-extrabold leading-tight">{{ p.title }}</h1>
+            <app-like-button [propertyId]="p.id" [title]="p.title" [showLabel]="true" />
+          </div>
           <p class="text-base-content/70">
             <i class="fa-solid fa-location-dot mr-1" aria-hidden="true"></i>{{ location() }}
           </p>

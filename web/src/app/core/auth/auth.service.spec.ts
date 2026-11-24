@@ -79,6 +79,19 @@ describe('AuthService', () => {
     expect(router.url).toBe('/');
   });
 
+  it('keeps the liked properties when the session is closed or expires', async () => {
+    localStorage.setItem('alhecasa.likes', JSON.stringify(['p-1', 'p-2']));
+    const auth = setup();
+    const router = TestBed.inject(Router);
+    signIn(auth);
+    await router.navigateByUrl('/inicio');
+
+    auth.logout();
+    await new Promise((resolve) => setTimeout(resolve));
+
+    expect(JSON.parse(localStorage.getItem('alhecasa.likes') ?? '[]')).toEqual(['p-1', 'p-2']);
+  });
+
   it('sends an expired session to the login, remembering where the user was', async () => {
     const auth = setup();
     const router = TestBed.inject(Router);

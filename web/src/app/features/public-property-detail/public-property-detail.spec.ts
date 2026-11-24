@@ -137,6 +137,32 @@ describe('PublicPropertyDetail', () => {
     expect(root(harness).querySelector('app-error-alert')).not.toBeNull();
   });
 
+  it('lets the visitor like the publication from the detail, sharing the state with the list', async () => {
+    localStorage.setItem('alhecasa.likes', JSON.stringify(['otra']));
+    const harness = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample());
+    harness.detectChanges();
+    const heart = root(harness).querySelector('app-like-button button') as HTMLButtonElement;
+    expect(heart.getAttribute('aria-pressed')).toBe('false');
+    expect(heart.textContent).toContain('Me gusta');
+
+    heart.click();
+    harness.detectChanges();
+
+    expect(heart.getAttribute('aria-pressed')).toBe('true');
+    expect(heart.textContent).toContain('Te gusta');
+    expect(JSON.parse(localStorage.getItem('alhecasa.likes') ?? '[]')).toEqual(['otra', 'p-1']);
+  });
+
+  it('shows the publication as liked when it was liked before', async () => {
+    localStorage.setItem('alhecasa.likes', JSON.stringify(['p-1']));
+    const harness = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample());
+    harness.detectChanges();
+
+    expect(root(harness).querySelector('app-like-button button')?.getAttribute('aria-pressed')).toBe('true');
+  });
+
   it('offers the login only to visitors without a session', async () => {
     const harness = await open();
     http.expectOne(detailUrl('p-1')).flush(sample());
