@@ -396,6 +396,34 @@ public sealed class PropertyServiceTests
         Assert.Null(new PropertyListQuery("   ").Normalize().Search);
     }
 
+    [Fact]
+    public async Task ListQuery_NormalizesAndValidatesTheCriteria_BeforeReachingTheRepository()
+    {
+        var service = CreateService(Staff(UserRole.Seller, _agencyA.Id));
+
+        await service.GetPagedAsync(new PropertyListQuery(Status: PropertyStatus.Draft, Amenities: [Amenity.Gym, Amenity.Gym], MinPrice: 5m, Currency: CurrencyCode.MXN));
+
+        var sent = _properties.LastListQuery!;
+        Assert.Equal(PropertyStatus.Draft, sent.Status);
+        Assert.Equal([Amenity.Gym], sent.Amenities);
+
+        await Assert.ThrowsAsync<DomainException>(() => service.GetPagedAsync(new PropertyListQuery(MinPrice: 5m)));
+        await Assert.ThrowsAsync<DomainException>(() => service.GetPagedAsync(new PropertyListQuery(Status: (PropertyStatus)99)));
+    }
+
+    [Fact]
+    public async Task Gallery_PassesTheCriteria_ButStaysInTheUsersAgencyAndIgnoresIds()
+    {
+        var service = CreateService(Staff(UserRole.Seller, _agencyA.Id));
+
+        await service.GetGalleryAsync(new PublicPropertyQuery(MinBedrooms: 3, Ids: [Guid.NewGuid()], Sort: PropertySort.PriceAsc));
+
+        Assert.Equal(_agencyA.Id, _properties.LastPublicAgencyId);
+        Assert.Equal(3, _properties.LastPublicQuery!.MinBedrooms);
+        Assert.Equal(PropertySort.PriceAsc, _properties.LastPublicQuery.Sort);
+        Assert.Null(_properties.LastPublicQuery.Ids);
+    }
+
     // --- Galería de la inmobiliaria ---------------------------------------------------------
 
     private Property AddPublished(Guid agencyId, string title)
@@ -415,7 +443,7 @@ public sealed class PropertyServiceTests
         AddProperty(_agencyA.Id, "Borrador mío");
         AddPublished(_agencyB.Id, "Publicada ajena");
 
-        var page = await CreateService(Staff(role, _agencyA.Id)).GetGalleryAsync(1, 12);
+        var page = await CreateService(Staff(role, _agencyA.Id)).GetGalleryAsync(new PublicPropertyQuery(Page: 1, PageSize: 12));
 
         Assert.Equal([mine.Id], page.Items.Select(p => p.Id));
         Assert.Equal(1, page.TotalCount);
@@ -426,8 +454,8 @@ public sealed class PropertyServiceTests
     {
         var platformAdmin = new FakeCurrentUser { UserId = Guid.CreateVersion7(), Role = UserRole.PlatformAdmin };
 
-        await Assert.ThrowsAsync<ForbiddenException>(() => CreateService(platformAdmin).GetGalleryAsync(1, 12));
-        await Assert.ThrowsAsync<ForbiddenException>(() => CreateService(FakeCurrentUser.Client()).GetGalleryAsync(1, 12));
+        await Assert.ThrowsAsync<ForbiddenException>(() => CreateService(platformAdmin).GetGalleryAsync(new PublicPropertyQuery()));
+        await Assert.ThrowsAsync<ForbiddenException>(() => CreateService(FakeCurrentUser.Client()).GetGalleryAsync(new PublicPropertyQuery()));
     }
 
     [Fact]
@@ -435,7 +463,7 @@ public sealed class PropertyServiceTests
     {
         AddPublished(_agencyA.Id, "Una");
 
-        var page = await CreateService(Staff(UserRole.Seller, _agencyA.Id)).GetGalleryAsync(-5, 100_000);
+        var page = await CreateService(Staff(UserRole.Seller, _agencyA.Id)).GetGalleryAsync(new PublicPropertyQuery(Page: -5, PageSize: 100_000));
 
         Assert.Equal(1, page.Page);
         Assert.Equal(PublicPropertyQuery.MaxPageSize, page.PageSize);

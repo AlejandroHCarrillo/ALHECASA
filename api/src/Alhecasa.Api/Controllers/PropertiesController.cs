@@ -14,7 +14,7 @@ public sealed class PropertiesController(IPropertyService propertyService) : Con
     // 10 imágenes de 5 MB más el sobrante del formato multipart.
     private const long MaxRequestBytes = (Alhecasa.Domain.Entities.Property.MaxImages * PropertyImageRules.MaxBytes) + (1024 * 1024);
 
-    /// <summary>Lista el inventario de propiedades con búsqueda y paginación.</summary>
+    /// <summary>Lista el inventario de propiedades con búsqueda, filtros (estado, tipo, operación, precio, recámaras…), orden y paginación.</summary>
     [HttpGet]
     [ProducesResponseType<PagedResult<PropertyDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<PagedResult<PropertyDto>>> GetPaged([FromQuery] PropertyListQuery query, CancellationToken cancellationToken) =>
@@ -28,8 +28,8 @@ public sealed class PropertiesController(IPropertyService propertyService) : Con
     [Authorize(Roles = RoleNames.AgencyStaff)]
     [ProducesResponseType<PagedResult<PublicPropertyDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
-    public async Task<ActionResult<PagedResult<PublicPropertyDto>>> GetGallery([FromQuery] int page = 1, [FromQuery] int pageSize = 12, CancellationToken cancellationToken = default) =>
-        Ok(await propertyService.GetGalleryAsync(page, pageSize, cancellationToken));
+    public async Task<ActionResult<PagedResult<PublicPropertyDto>>> GetGallery([FromQuery] PublicPropertyQuery query, CancellationToken cancellationToken = default) =>
+        Ok(await propertyService.GetGalleryAsync(query, cancellationToken));
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType<PropertyDto>(StatusCodes.Status200OK)]

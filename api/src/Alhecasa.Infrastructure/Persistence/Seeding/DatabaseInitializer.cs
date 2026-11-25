@@ -60,6 +60,7 @@ public static class DatabaseInitializer
             {
                 await EnsureSamplePropertiesAsync(db, logger, agency.Id, cancellationToken);
                 await EnsureSampleCoordinatesAsync(db, logger, agency.Id, cancellationToken);
+                await EnsureAdvancedDetailsAsync(db, logger, agency.Id, SampleProperties.All, cancellationToken);
 
                 if (!string.IsNullOrWhiteSpace(demo.SampleImagesPath))
                 {
@@ -107,6 +108,41 @@ public static class DatabaseInitializer
         {
             await db.SaveChangesAsync(cancellationToken);
             logger.LogInformation("Seeded the location of {Count} sample properties.", updated);
+        }
+    }
+
+    /// <summary>
+    /// Completa estacionamientos, mascotas, amueblado y amenidades de las propiedades de ejemplo que se sembraron antes de
+    /// que existieran esos datos. Solo toca las que no tienen ninguno capturado (ver <see cref="Property.CompleteAdvancedDetails"/>).
+    /// </summary>
+    private static async Task EnsureAdvancedDetailsAsync(
+        AlhecasaDbContext db,
+        ILogger logger,
+        Guid agencyId,
+        IReadOnlyList<PropertyData> samples,
+        CancellationToken cancellationToken)
+    {
+        var updated = 0;
+        foreach (var sample in samples)
+        {
+            if (sample.ParkingSpaces is null && !sample.PetsAllowed && !sample.Furnished && sample.Amenities == Amenity.None)
+            {
+                continue;
+            }
+
+            var title = sample.Title;
+            var property = await db.Properties.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(p => p.AgencyId == agencyId && !p.IsDeleted && p.Title == title, cancellationToken);
+            if (property?.CompleteAdvancedDetails(sample.ParkingSpaces, sample.PetsAllowed, sample.Furnished, sample.Amenities) == true)
+            {
+                updated++;
+            }
+        }
+
+        if (updated > 0)
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            logger.LogInformation("Seeded the advanced details of {Count} sample properties.", updated);
         }
     }
 
@@ -240,6 +276,8 @@ public static class DatabaseInitializer
                     agency.Id,
                     cancellationToken);
             }
+
+            await EnsureAdvancedDetailsAsync(db, logger, agency.Id, data.Properties, cancellationToken);
 
             for (var index = 0; index < data.Properties.Count; index++)
             {

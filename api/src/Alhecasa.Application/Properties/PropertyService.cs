@@ -17,7 +17,7 @@ public interface IPropertyService
     /// Las propiedades publicadas de la inmobiliaria del usuario, con el mismo contenido y el mismo orden con que las ve un visitante
     /// (solo datos públicos). Solo para personal de una inmobiliaria: el administrador de plataforma no tiene una.
     /// </summary>
-    Task<PagedResult<PublicPropertyDto>> GetGalleryAsync(int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<PagedResult<PublicPropertyDto>> GetGalleryAsync(PublicPropertyQuery query, CancellationToken cancellationToken = default);
 
     Task<PropertyDto> CreateAsync(CreatePropertyRequest request, CancellationToken cancellationToken = default);
 
@@ -63,7 +63,7 @@ public sealed class PropertyService(
         return page.Map(ToDto);
     }
 
-    public async Task<PagedResult<PublicPropertyDto>> GetGalleryAsync(int page, int pageSize, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<PublicPropertyDto>> GetGalleryAsync(PublicPropertyQuery query, CancellationToken cancellationToken = default)
     {
         if (currentUser.Role is not (UserRole.AgencyAdmin or UserRole.Supervisor or UserRole.Seller))
         {
@@ -73,8 +73,7 @@ public sealed class PropertyService(
         var agencyId = currentUser.AgencyId
             ?? throw new ForbiddenException("Your account does not belong to an agency.");
 
-        var query = new PublicPropertyQuery(Page: page, PageSize: pageSize).Normalize();
-        var result = await properties.GetPublishedPagedAsync(query, agencyId, cancellationToken);
+        var result = await properties.GetPublishedPagedAsync(query.Normalize() with { Ids = null }, agencyId, cancellationToken);
         return result.Map(PublicPropertyService.ToDto);
     }
 
@@ -308,5 +307,9 @@ public sealed class PropertyService(
         p.Longitude,
         PublicPropertyService.OrderedImageIds(p),
         p.CreatedAt,
-        p.UpdatedAt);
+        p.UpdatedAt,
+        p.ParkingSpaces,
+        p.PetsAllowed,
+        p.Furnished,
+        AmenityFlags.ToList(p.Amenities));
 }

@@ -27,6 +27,10 @@ const sample = (overrides: Partial<PublicProperty> = {}): PublicProperty => ({
   approximateLongitude: null,
   imageIds: ['img-a', 'img-b', 'img-c'],
   agencyName: 'Demo Real Estate',
+  parkingSpaces: null,
+  petsAllowed: false,
+  furnished: false,
+  amenities: [],
   ...overrides,
 });
 
@@ -206,5 +210,28 @@ describe('PublicPropertyDetail', () => {
 
     expect(root(harness).querySelector('app-inquiry-form-modal')).not.toBeNull();
     expect(root(harness).querySelector('dialog')?.textContent).toContain('Casa moderna con alberca');
+  });
+
+  it('shows parking, pets, furnished and the amenities with their Spanish names', async () => {
+    const harness = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample({ parkingSpaces: 3, petsAllowed: true, furnished: true, amenities: ['Pool', 'Security24h'] }));
+    harness.detectChanges();
+
+    expect(root(harness).querySelector('[data-testid="parking"]')?.textContent).toContain('3');
+    const features = root(harness).querySelector('[data-testid="features"]')?.textContent ?? '';
+    expect(features).toContain('Amueblada');
+    expect(features).toContain('Acepta mascotas');
+    expect(features).toContain('Alberca');
+    expect(features).toContain('Seguridad 24 h');
+    expect(features).not.toContain('Gimnasio');
+  });
+
+  it('does not show the features block, nor parking, when there is nothing to show', async () => {
+    const harness = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample());
+    harness.detectChanges();
+
+    expect(root(harness).querySelector('[data-testid="features"]')).toBeNull();
+    expect(root(harness).querySelector('[data-testid="parking"]')).toBeNull();
   });
 });

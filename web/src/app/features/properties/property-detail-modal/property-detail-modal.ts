@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 import { Modal } from '../../../shared/components/modal/modal';
 import { imageUrl } from '../../../shared/utils/image-url';
 import {
+  AMENITY_LABELS,
   OPERATION_LABELS,
   PROPERTY_STATUS_BADGES,
   PROPERTY_STATUS_LABELS,
@@ -105,6 +106,28 @@ import {
           <dd>{{ property().landArea !== null ? (property().landArea | number: '1.0-2') : '—' }}</dd>
         </div>
         <div>
+          <dt class="text-xs uppercase text-base-content/60">Estacionamientos</dt>
+          <dd>{{ property().parkingSpaces ?? '—' }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs uppercase text-base-content/60">Mascotas y mobiliario</dt>
+          <dd>{{ property().petsAllowed ? 'Acepta mascotas' : 'No acepta mascotas' }} · {{ property().furnished ? 'Amueblada' : 'Sin amueblar' }}</dd>
+        </div>
+        <div class="sm:col-span-2">
+          <dt class="text-xs uppercase text-base-content/60">Amenidades</dt>
+          <dd data-testid="amenities">
+            @if (property().amenities.length > 0) {
+              <ul class="flex flex-wrap gap-1">
+                @for (amenity of property().amenities; track amenity) {
+                  <li class="badge badge-outline">{{ amenityLabels[amenity] }}</li>
+                }
+              </ul>
+            } @else {
+              —
+            }
+          </dd>
+        </div>
+        <div>
           <dt class="text-xs uppercase text-base-content/60">Alta</dt>
           <dd>{{ property().createdAt | date: 'dd/MM/yyyy HH:mm' }}</dd>
         </div>
@@ -134,4 +157,5 @@ export class PropertyDetailModal {
   protected readonly operationLabels = OPERATION_LABELS;
   protected readonly statusLabels = PROPERTY_STATUS_LABELS;
   protected readonly statusBadges = PROPERTY_STATUS_BADGES;
+  protected readonly amenityLabels = AMENITY_LABELS;
 }

@@ -16,7 +16,7 @@ partial class AlhecasaDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261125003304_AddAgencyKind";
+    public override string LastMigrationId => "20261125170441_AddPropertyAdvancedFields";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -191,6 +191,9 @@ partial class AlhecasaDbContextModelSnapshot : ModelSnapshot
                 b.Property<Guid>("AgencyId")
                     .HasColumnType("uniqueidentifier");
 
+                b.Property<int>("Amenities")
+                    .HasColumnType("int");
+
                 b.Property<int?>("Bathrooms")
                     .HasColumnType("int");
 
@@ -221,6 +224,9 @@ partial class AlhecasaDbContextModelSnapshot : ModelSnapshot
                     .HasMaxLength(2000)
                     .HasColumnType("nvarchar(2000)");
 
+                b.Property<bool>("Furnished")
+                    .HasColumnType("bit");
+
                 b.Property<bool>("IsDeleted")
                     .HasColumnType("bit");
 
@@ -244,6 +250,12 @@ partial class AlhecasaDbContextModelSnapshot : ModelSnapshot
                     .IsRequired()
                     .HasMaxLength(30)
                     .HasColumnType("nvarchar(30)");
+
+                b.Property<int?>("ParkingSpaces")
+                    .HasColumnType("int");
+
+                b.Property<bool>("PetsAllowed")
+                    .HasColumnType("bit");
 
                 b.Property<string>("PostalCode")
                     .HasMaxLength(10)

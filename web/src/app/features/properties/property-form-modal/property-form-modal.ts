@@ -11,6 +11,8 @@ import { imageUrl } from '../../../shared/utils/image-url';
 import { Agency } from '../../users/user.models';
 import { PropertiesService } from '../properties.service';
 import {
+  AMENITY_LABELS,
+  Amenity,
   CurrencyCode,
   IMAGE_LIMITS,
   OPERATION_LABELS,
@@ -24,7 +26,7 @@ import {
   UpdatePropertyRequest,
 } from '../property.models';
 
-type TextField = 'title' | 'coordinates' | 'price' | 'city' | 'state' | 'agencyId' | 'bedrooms' | 'bathrooms' | 'constructionArea' | 'landArea';
+type TextField = 'title' | 'coordinates' | 'parkingSpaces' | 'price' | 'city' | 'state' | 'agencyId' | 'bedrooms' | 'bathrooms' | 'constructionArea' | 'landArea';
 
 /** Imagen elegida en el equipo que todavía no se sube. */
 interface StagedImage {
@@ -62,6 +64,8 @@ export class PropertyFormModal implements OnInit, OnDestroy {
   protected readonly typeLabels = PROPERTY_TYPE_LABELS;
   protected readonly operationLabels = OPERATION_LABELS;
   protected readonly statusLabels = PROPERTY_STATUS_LABELS;
+  protected readonly amenities = Object.values(Amenity);
+  protected readonly amenityLabels = AMENITY_LABELS;
 
   protected readonly isEdit = computed(() => this.property() !== null);
 
@@ -110,6 +114,10 @@ export class PropertyFormModal implements OnInit, OnDestroy {
     constructionArea: new FormControl<number | null>(null, [Validators.min(0), Validators.max(PROPERTY_LIMITS.maxArea)]),
     landArea: new FormControl<number | null>(null, [Validators.min(0), Validators.max(PROPERTY_LIMITS.maxArea)]),
     coordinates: ['', [coordinatesValidator]],
+    parkingSpaces: new FormControl<number | null>(null, [Validators.min(0), Validators.max(PROPERTY_LIMITS.maxParking)]),
+    petsAllowed: [false],
+    furnished: [false],
+    amenities: [[] as Amenity[]],
     agencyId: [''],
   });
 
@@ -137,6 +145,10 @@ export class PropertyFormModal implements OnInit, OnDestroy {
         constructionArea: property.constructionArea,
         landArea: property.landArea,
         coordinates: formatCoordinates(property.latitude, property.longitude),
+        parkingSpaces: property.parkingSpaces,
+        petsAllowed: property.petsAllowed,
+        furnished: property.furnished,
+        amenities: [...property.amenities],
       });
     }
 
@@ -144,6 +156,15 @@ export class PropertyFormModal implements OnInit, OnDestroy {
       this.form.controls.agencyId.addValidators(Validators.required);
       this.form.controls.agencyId.updateValueAndValidity();
     }
+  }
+
+  protected hasAmenity(amenity: Amenity): boolean {
+    return this.form.controls.amenities.value.includes(amenity);
+  }
+
+  protected toggleAmenity(amenity: Amenity): void {
+    const current = this.form.controls.amenities.value;
+    this.form.controls.amenities.setValue(current.includes(amenity) ? current.filter((a) => a !== amenity) : [...current, amenity]);
   }
 
   protected hasError(control: TextField): boolean {
@@ -179,6 +200,10 @@ export class PropertyFormModal implements OnInit, OnDestroy {
       landArea: value.landArea,
       latitude: coordinates === null || coordinates === 'invalid' ? null : coordinates.latitude,
       longitude: coordinates === null || coordinates === 'invalid' ? null : coordinates.longitude,
+      parkingSpaces: value.parkingSpaces,
+      petsAllowed: value.petsAllowed,
+      furnished: value.furnished,
+      amenities: value.amenities,
     };
 
     const wasEdit = this.property() !== null;

@@ -244,6 +244,54 @@
       </div>
     </div>
 
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div class="form-control">
+        <label class="label" for="parkingSpaces"><span class="label-text">Estacionamientos</span></label>
+        <input
+          id="parkingSpaces"
+          type="number"
+          class="input input-bordered w-full"
+          formControlName="parkingSpaces"
+          min="0"
+          [max]="limits.maxParking"
+          step="1"
+          [class.input-error]="hasError('parkingSpaces')"
+        />
+      </div>
+
+      <div class="form-control justify-end">
+        <label class="label cursor-pointer justify-start gap-3" for="petsAllowed">
+          <input id="petsAllowed" type="checkbox" class="checkbox checkbox-sm" formControlName="petsAllowed" />
+          <span class="label-text">Acepta mascotas</span>
+        </label>
+      </div>
+
+      <div class="form-control justify-end">
+        <label class="label cursor-pointer justify-start gap-3" for="furnished">
+          <input id="furnished" type="checkbox" class="checkbox checkbox-sm" formControlName="furnished" />
+          <span class="label-text">Amueblada</span>
+        </label>
+      </div>
+    </div>
+
+    <fieldset class="form-control">
+      <legend class="label"><span class="label-text">Amenidades</span></legend>
+      <div class="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3" data-testid="amenities">
+        @for (amenity of amenities; track amenity) {
+          <label class="label cursor-pointer justify-start gap-3" [for]="'amenity-' + amenity">
+            <input
+              [id]="'amenity-' + amenity"
+              type="checkbox"
+              class="checkbox checkbox-sm"
+              [checked]="hasAmenity(amenity)"
+              (change)="toggleAmenity(amenity)"
+            />
+            <span class="label-text">{{ amenityLabels[amenity] }}</span>
+          </label>
+        }
+      </div>
+    </fieldset>
+
     <fieldset class="form-control" aria-describedby="images-help">
       <legend class="label">
         <span class="label-text">

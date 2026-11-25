@@ -23,7 +23,11 @@ public sealed record PropertyData(
     decimal? ConstructionArea,
     decimal? LandArea,
     decimal? Latitude = null,
-    decimal? Longitude = null);
+    decimal? Longitude = null,
+    int? ParkingSpaces = null,
+    bool PetsAllowed = false,
+    bool Furnished = false,
+    Amenity Amenities = Amenity.None);
 
 /// <summary>
 /// Propiedad del inventario de una inmobiliaria. Pertenece siempre a una (es el tenant) y nunca cambia de inmobiliaria.
@@ -93,6 +97,16 @@ public class Property : BaseEntity
     /// <summary>Longitud exacta en grados (-180 a 180).</summary>
     public decimal? Longitude { get; private set; }
 
+    /// <summary>Cajones de estacionamiento. Nulo si no se capturó; 0 significa que no tiene.</summary>
+    public int? ParkingSpaces { get; private set; }
+
+    public bool PetsAllowed { get; private set; }
+
+    public bool Furnished { get; private set; }
+
+    /// <summary>Amenidades como máscara de bits (ver <see cref="Amenity"/>).</summary>
+    public Amenity Amenities { get; private set; }
+
     /// <summary>Máximo de imágenes por propiedad.</summary>
     public const int MaxImages = 10;
 
@@ -159,6 +173,16 @@ public class Property : BaseEntity
             throw new DomainException("Rooms and areas cannot be negative.");
         }
 
+        if (data.ParkingSpaces is < 0)
+        {
+            throw new DomainException("Parking spaces cannot be negative.");
+        }
+
+        if (data.Amenities != Amenity.None && AmenityFlags.Combine(AmenityFlags.ToList(data.Amenities)) != data.Amenities)
+        {
+            throw new DomainException("The amenities are not valid.");
+        }
+
         ValidateCoordinates(data.Latitude, data.Longitude);
 
         Title = data.Title;
@@ -179,6 +203,28 @@ public class Property : BaseEntity
         LandArea = data.LandArea;
         Latitude = Round(data.Latitude);
         Longitude = Round(data.Longitude);
+        ParkingSpaces = data.ParkingSpaces;
+        PetsAllowed = data.PetsAllowed;
+        Furnished = data.Furnished;
+        Amenities = data.Amenities;
+    }
+
+    /// <summary>
+    /// Completa los datos nuevos de una propiedad que se creó antes de que existieran (los de ejemplo).
+    /// Solo actúa si todavía no se capturó nada de ellos; nunca pisa lo que alguien ya puso.
+    /// </summary>
+    public bool CompleteAdvancedDetails(int? parkingSpaces, bool petsAllowed, bool furnished, Amenity amenities)
+    {
+        if (ParkingSpaces is not null || PetsAllowed || Furnished || Amenities != Amenity.None)
+        {
+            return false;
+        }
+
+        ParkingSpaces = parkingSpaces;
+        PetsAllowed = petsAllowed;
+        Furnished = furnished;
+        Amenities = amenities;
+        return true;
     }
 
     private static void ValidateCoordinates(decimal? latitude, decimal? longitude)
