@@ -185,4 +185,70 @@ public sealed class PropertyTests
         Assert.True(property.IsDeleted);
         Assert.NotNull(property.DeletedAt);
     }
+
+    [Fact]
+    public void NewProperty_StoresParkingPetsFurnishedAndAmenities()
+    {
+        var property = new Property(AgencyId, ValidData() with { ParkingSpaces = 2, PetsAllowed = true, Furnished = true, Amenities = Amenity.Pool | Amenity.Gym });
+
+        Assert.Equal(2, property.ParkingSpaces);
+        Assert.True(property.PetsAllowed);
+        Assert.True(property.Furnished);
+        Assert.Equal(Amenity.Pool | Amenity.Gym, property.Amenities);
+    }
+
+    [Fact]
+    public void TheNewDetails_AreOptional()
+    {
+        var property = new Property(AgencyId, ValidData());
+
+        Assert.Null(property.ParkingSpaces);
+        Assert.False(property.PetsAllowed);
+        Assert.False(property.Furnished);
+        Assert.Equal(Amenity.None, property.Amenities);
+    }
+
+    [Fact]
+    public void Property_RejectsNegativeParking_AndUndefinedAmenityBits()
+    {
+        Assert.Throws<DomainException>(() => new Property(AgencyId, ValidData() with { ParkingSpaces = -1 }));
+        Assert.Throws<DomainException>(() => new Property(AgencyId, ValidData() with { Amenities = (Amenity)(1 << 20) }));
+    }
+
+    [Fact]
+    public void CompleteAdvancedDetails_FillsOnlyWhenNothingWasCaptured()
+    {
+        var empty = new Property(AgencyId, ValidData());
+        Assert.True(empty.CompleteAdvancedDetails(2, true, false, Amenity.Pool));
+        Assert.Equal(2, empty.ParkingSpaces);
+        Assert.Equal(Amenity.Pool, empty.Amenities);
+
+        // Ya tiene datos: no se pisan.
+        Assert.False(empty.CompleteAdvancedDetails(5, false, true, Amenity.Gym));
+        Assert.Equal(2, empty.ParkingSpaces);
+        Assert.Equal(Amenity.Pool, empty.Amenities);
+    }
+
+    [Fact]
+    public void AmenityFlags_ConvertBetweenTheMaskAndTheList()
+    {
+        var mask = AmenityFlags.Combine([Amenity.Gym, Amenity.Pool, Amenity.Pool]);
+
+        Assert.Equal(Amenity.Pool | Amenity.Gym, mask);
+        Assert.Equal([Amenity.Pool, Amenity.Gym], AmenityFlags.ToList(mask));
+        Assert.Empty(AmenityFlags.ToList(Amenity.None));
+        Assert.Equal(Amenity.None, AmenityFlags.Combine(null));
+        Assert.True(AmenityFlags.IsSingle(Amenity.Pool));
+        Assert.False(AmenityFlags.IsSingle(Amenity.None));
+        Assert.False(AmenityFlags.IsSingle(Amenity.Pool | Amenity.Gym));
+    }
+
+    [Fact]
+    public void EveryAmenity_IsADistinctSingleBit()
+    {
+        var values = AmenityFlags.All.Select(a => (int)a).ToList();
+
+        Assert.Equal(values.Count, values.Distinct().Count());
+        Assert.All(values, v => Assert.Equal(1, int.PopCount(v)));
+    }
 }

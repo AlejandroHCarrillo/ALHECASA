@@ -41,11 +41,16 @@ internal sealed class PropertyRepository(AlhecasaDbContext db) : IPropertyReposi
                 || (p.Street != null && EF.Functions.Like(p.Street, pattern, "\\")));
         }
 
+        if (query.Status is not null)
+        {
+            source = source.Where(p => p.Status == query.Status);
+        }
+
+        source = ApplyCriteria(source, query);
+
         var total = await source.CountAsync(cancellationToken);
 
-        // Lo más reciente primero; el Id (Guid v7, ordenable por tiempo) desempata.
-        var items = await source
-            .OrderByDescending(p => p.CreatedAt).ThenByDescending(p => p.Id)
+        var items = await Sort(source, query.Sort)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
             .ToListAsync(cancellationToken);
@@ -84,15 +89,7 @@ internal sealed class PropertyRepository(AlhecasaDbContext db) : IPropertyReposi
             source = source.Where(p => ids.Contains(p.Id));
         }
 
-        if (query.Operation is not null)
-        {
-            source = source.Where(p => p.Operation == query.Operation);
-        }
-
-        if (query.Type is not null)
-        {
-            source = source.Where(p => p.Type == query.Type);
-        }
+        source = ApplyCriteria(source, query);
 
         if (query.Location is not null)
         {
@@ -106,8 +103,7 @@ internal sealed class PropertyRepository(AlhecasaDbContext db) : IPropertyReposi
 
         var total = await source.CountAsync(cancellationToken);
 
-        var items = await source
-            .OrderByDescending(p => p.CreatedAt).ThenByDescending(p => p.Id)
+        var items = await Sort(source, query.Sort)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
             .ToListAsync(cancellationToken);
@@ -117,6 +113,94 @@ internal sealed class PropertyRepository(AlhecasaDbContext db) : IPropertyReposi
 
     public async Task AddAsync(Property entity, CancellationToken cancellationToken = default) =>
         await db.Properties.AddAsync(entity, cancellationToken);
+
+    /// <summary>
+    /// Criterios comunes del catálogo público y de la lista del personal. Cada uno solo actúa si se indicó, y todos se combinan con «y».
+    /// Un dato que la propiedad no tiene (por ejemplo, recámaras de un terreno) no cumple un mínimo.
+    /// </summary>
+    private static IQueryable<Property> ApplyCriteria(IQueryable<Property> source, IPropertyCriteria c)
+    {
+        if (c.Operation is not null)
+        {
+            source = source.Where(p => p.Operation == c.Operation);
+        }
+
+        if (c.Type is not null)
+        {
+            source = source.Where(p => p.Type == c.Type);
+        }
+
+        // El precio solo se compara dentro de una moneda: no hay conversión. La validación exige moneda cuando hay un límite.
+        if (c.Currency is not null && (c.MinPrice is not null || c.MaxPrice is not null))
+        {
+            source = source.Where(p => p.Currency == c.Currency);
+        }
+
+        if (c.MinPrice is not null)
+        {
+            source = source.Where(p => p.Price >= c.MinPrice);
+        }
+
+        if (c.MaxPrice is not null)
+        {
+            source = source.Where(p => p.Price <= c.MaxPrice);
+        }
+
+        if (c.MinBedrooms is not null)
+        {
+            source = source.Where(p => p.Bedrooms >= c.MinBedrooms);
+        }
+
+        if (c.MinBathrooms is not null)
+        {
+            source = source.Where(p => p.Bathrooms >= c.MinBathrooms);
+        }
+
+        if (c.MinParking is not null)
+        {
+            source = source.Where(p => p.ParkingSpaces >= c.MinParking);
+        }
+
+        // Superficie: la construida y, si no tiene (un terreno), la del terreno.
+        if (c.MinArea is not null)
+        {
+            source = source.Where(p => (p.ConstructionArea ?? p.LandArea) >= c.MinArea);
+        }
+
+        if (c.MaxArea is not null)
+        {
+            source = source.Where(p => (p.ConstructionArea ?? p.LandArea) <= c.MaxArea);
+        }
+
+        if (c.PetsAllowed == true)
+        {
+            source = source.Where(p => p.PetsAllowed);
+        }
+
+        if (c.Furnished == true)
+        {
+            source = source.Where(p => p.Furnished);
+        }
+
+        var mask = AmenityFlags.Combine(c.Amenities);
+        if (mask != Amenity.None)
+        {
+            source = source.Where(p => (p.Amenities & mask) == mask);
+        }
+
+        return source;
+    }
+
+    /// <summary>Orden pedido; siempre desempata por antigüedad y por Id (Guid v7, ordenable por tiempo), así que la paginación es estable.</summary>
+    private static IQueryable<Property> Sort(IQueryable<Property> source, PropertySort sort) => sort switch
+    {
+        PropertySort.PriceAsc => source.OrderBy(p => p.Price).ThenByDescending(p => p.CreatedAt).ThenByDescending(p => p.Id),
+        PropertySort.PriceDesc => source.OrderByDescending(p => p.Price).ThenByDescending(p => p.CreatedAt).ThenByDescending(p => p.Id),
+        PropertySort.AreaDesc => source
+            .OrderByDescending(p => p.ConstructionArea ?? p.LandArea)
+            .ThenByDescending(p => p.CreatedAt).ThenByDescending(p => p.Id),
+        _ => source.OrderByDescending(p => p.CreatedAt).ThenByDescending(p => p.Id)
+    };
 
     private static string EscapeLike(string value) =>
         value.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_").Replace("[", "\\[");

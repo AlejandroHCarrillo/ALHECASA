@@ -312,18 +312,21 @@ Inventario de propiedades que administra una inmobiliaria. Acceso: `PlatformAdmi
 | `currency` | texto | `MXN` (por defecto), `USD` |
 | `street`, `neighborhood`, `city`, `state`, `postalCode` | texto | `city` y `state` obligatorios. Máx. 200, 100, 100, 100 y 10 |
 | `bedrooms`, `bathrooms` | entero o `null` | 0 a 50 |
+| `parkingSpaces` | entero o `null` | Lugares de estacionamiento, 0 a 50. `null` = no se capturó |
 | `constructionArea`, `landArea` | número o `null` | m², 0 a 99,999,999.99 |
+| `petsAllowed`, `furnished` | booleano | Aceptan mascotas / amueblada. `false` por defecto |
+| `amenities` | lista de texto | Amenidades: `Pool`, `Gym`, `Security24h`, `Garden`, `Terrace`, `Elevator`, `Storage`, `ServiceRoom`, `AirConditioning`, `CommonAreas`, `Fireplace`, `Playground`. Sin repetidos; un nombre desconocido responde `400`. Al guardarse es un campo de bits, pero la API siempre habla en nombres (es la única enumeración que viaja como lista) |
 | `latitude`, `longitude` | número o `null` | Ubicación exacta para el mapa. Van **juntas** (las dos o ninguna; una sola responde `400`). Latitud -90 a 90 y longitud -180 a 180; se guardan con 6 decimales. Al editar, omitirlas o enviar `null` quita la ubicación |
 | `imageIds` | lista de guid | Imágenes en orden de galería; la primera es la portada. Se piden con `GET /api/images/{id}` |
 | `createdAt`, `updatedAt` | fecha | |
 
 ### `GET /api/properties`
 
-Parámetros: `search` (opcional; busca en título, ciudad, colonia y calle), `page` (por defecto 1) y `pageSize` (por defecto 10, máximo 100). Orden: más recientes primero. Respuesta `200` con la misma forma paginada que `/api/users` (`items`, `page`, `pageSize`, `totalCount`, `totalPages`).
+Parámetros, todos opcionales y combinables con «y»: `search` (busca en título, ciudad, colonia y calle), `status` (`Draft`, `Published`, `Paused`, `Closed`), `type`, `operation`, los **criterios avanzados** (los mismos que el catálogo público; ver la tabla de [`GET /api/public/properties`](#get-apipublicproperties): `minPrice`, `maxPrice`, `currency`, `minBedrooms`, `minBathrooms`, `minParking`, `minArea`, `maxArea`, `petsAllowed`, `furnished`, `amenities` y `sort`), `page` (por defecto 1) y `pageSize` (por defecto 10, máximo 100). Sin `sort`, las más recientes primero. A diferencia del catálogo público, aquí aparecen también borradores, pausadas y cerradas. Un valor inválido responde `400`. Respuesta `200` con la misma forma paginada que `/api/users` (`items`, `page`, `pageSize`, `totalCount`, `totalPages`).
 
 ### `GET /api/properties/gallery`
 
-Las propiedades **publicadas de la inmobiliaria del usuario**, con el mismo contenido que el catálogo público (objeto `PublicPropertyDto`: sin calle ni código postal y con la ubicación aproximada) y el mismo orden (más recientes primero). Sirve para que el personal vea cómo se publican. Parámetros: `page` (por defecto 1) y `pageSize` (por defecto 12, máximo 100). Respuesta `200` paginada como las demás listas. Aplica las mismas reglas de visibilidad que el sitio público: una propiedad que allá no se vería (borrador, pausada, cerrada, eliminada o de una inmobiliaria inactiva) tampoco aparece aquí. **Errores:** `401`; `403` para el administrador de plataforma (no pertenece a una inmobiliaria) y para clientes.
+Las propiedades **publicadas de la inmobiliaria del usuario**, con el mismo contenido que el catálogo público (objeto `PublicPropertyDto`: sin calle ni código postal y con la ubicación aproximada) y el mismo orden (más recientes primero, o el de `sort`). Sirve para que el personal vea cómo se publican. Parámetros: `page` (por defecto 1), `pageSize` (por defecto 12, máximo 100) y los mismos criterios de búsqueda que el catálogo público (`operation`, `type`, `location`, criterios avanzados y `sort`; `ids` se ignora). La pantalla de la galería aún no ofrece panel de filtros, pero la API ya los acepta. Respuesta `200` paginada como las demás listas. Aplica las mismas reglas de visibilidad que el sitio público: una propiedad que allá no se vería (borrador, pausada, cerrada, eliminada o de una inmobiliaria inactiva) tampoco aparece aquí. **Errores:** `401`; `403` para el administrador de plataforma (no pertenece a una inmobiliaria) y para clientes.
 
 ### `GET /api/properties/{id}`
 
@@ -386,14 +389,21 @@ Parámetros, todos opcionales y combinables (se aplican con «y»):
 | `type` | `House` \| `Apartment` \| `Land` \| `Commercial` \| `Office` | Tipo de inmueble. Un valor inválido responde `400`. |
 | `location` | texto | Debe aparecer en la colonia, la ciudad o el estado (sin distinguir mayúsculas). No busca en el título ni en la calle. |
 | `ids` | guid, repetible | Solo estas propiedades (`?ids=<guid>&ids=<guid>`), siempre que además estén publicadas: un id de un borrador, de una propiedad pausada o eliminada, o desconocido simplemente no aparece. Lo usa «Mis favoritas» de la portada, cuyos `me gusta` se guardan en el navegador. Máximo **100** ids (`400` si se envían más); un valor que no sea guid responde `400`. Se combina con los demás filtros y con la paginación. |
+| `minPrice`, `maxPrice` | número | Rango de precio, en la moneda de `currency`. **No hay conversión** entre `MXN` y `USD`. Si se envía uno, `currency` es obligatoria. Deben ser ≥ 0, no pasar de 9,999,999,999,999.99 y `minPrice` ≤ `maxPrice` (`400` si no). |
+| `currency` | `MXN` \| `USD` | Moneda de los límites de precio. Sin límites, no filtra. |
+| `minBedrooms`, `minBathrooms`, `minParking` | entero 0 a 50 | «Al menos» esa cantidad. Una propiedad con el dato en blanco (`null`) no cumple si el mínimo es mayor que 0. |
+| `minArea`, `maxArea` | número | m². Se compara la superficie construida y, si no tiene (un terreno), la del terreno. Mismas reglas de rango que el precio. |
+| `petsAllowed`, `furnished` | booleano | `true` deja solo las que aceptan mascotas / las amuebladas. `false` o ausente no filtra. |
+| `amenities` | texto, repetible | `?amenities=Pool&amenities=Gym`: debe tener **todas** las indicadas. Un nombre desconocido responde `400`. |
+| `sort` | `Recent` \| `PriceAsc` \| `PriceDesc` \| `AreaDesc` | Por defecto `Recent`. Los empates se resuelven por antigüedad y luego por id, así el orden es estable al paginar. El precio se compara tal cual, sin convertir monedas (para ordenar con sentido, combínalo con `currency`). |
 | `page` | entero | Por defecto 1 |
 | `pageSize` | entero | Por defecto 10, máximo 100 |
 
-Orden: más recientes primero. La respuesta tiene la misma forma paginada que las demás listas.
+Orden: el de `sort` (más recientes primero por defecto). La respuesta tiene la misma forma paginada que las demás listas.
 
-**Ejemplo:** `GET /api/public/properties?operation=Rent&type=Apartment&location=roma`
+**Ejemplos:** `GET /api/public/properties?operation=Rent&type=Apartment&location=roma` y `GET /api/public/properties?currency=MXN&maxPrice=3000000&minBedrooms=2&petsAllowed=true&amenities=Pool&sort=PriceAsc`
 
-Cada elemento de `items` trae solo datos públicos: `id`, `title`, `description`, `type`, `operation`, `price`, `currency`, `neighborhood`, `city`, `state`, `bedrooms`, `bathrooms`, `constructionArea`, `landArea`, `approximateLatitude`, `approximateLongitude`, `imageIds` (la primera es la portada) y `agencyName`. **No incluye** la calle ni el código postal (la dirección exacta se da al contactar), ni el estado, ni identificadores de la inmobiliaria. La ubicación es **aproximada a propósito**: las coordenadas públicas se redondean a 3 decimales (unos 110 m) y son `null` si la propiedad no tiene ubicación; las exactas (`latitude`, `longitude`) solo las devuelve la API autenticada del personal.
+Cada elemento de `items` trae solo datos públicos: `id`, `title`, `description`, `type`, `operation`, `price`, `currency`, `neighborhood`, `city`, `state`, `bedrooms`, `bathrooms`, `parkingSpaces`, `constructionArea`, `landArea`, `petsAllowed`, `furnished`, `amenities`, `approximateLatitude`, `approximateLongitude`, `imageIds` (la primera es la portada) y `agencyName`. **No incluye** la calle ni el código postal (la dirección exacta se da al contactar), ni el estado, ni identificadores de la inmobiliaria. La ubicación es **aproximada a propósito**: las coordenadas públicas se redondean a 3 decimales (unos 110 m) y son `null` si la propiedad no tiene ubicación; las exactas (`latitude`, `longitude`) solo las devuelve la API autenticada del personal.
 
 Límite: 120 solicitudes por minuto por IP (`429` al excederlo).
 

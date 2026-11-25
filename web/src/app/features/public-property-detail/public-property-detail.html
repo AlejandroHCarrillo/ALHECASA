@@ -160,6 +160,12 @@
                       <dd class="font-semibold">{{ p.landArea | number: '1.0-2' }} m²</dd>
                     </div>
                   }
+                  @if (p.parkingSpaces !== null) {
+                    <div>
+                      <dt class="text-base-content/60"><i class="fa-solid fa-car mr-1" aria-hidden="true"></i>Estacionamientos</dt>
+                      <dd class="font-semibold" data-testid="parking">{{ p.parkingSpaces }}</dd>
+                    </div>
+                  }
                   <div>
                     <dt class="text-base-content/60">Tipo</dt>
                     <dd class="font-semibold">{{ typeLabels[p.type] }}</dd>
@@ -169,6 +175,20 @@
                     <dd class="font-semibold">{{ operationLabels[p.operation] }}</dd>
                   </div>
                 </dl>
+
+                @if (p.petsAllowed || p.furnished || p.amenities.length > 0) {
+                  <ul class="flex flex-wrap gap-1" aria-label="Características" data-testid="features">
+                    @if (p.furnished) {
+                      <li class="badge badge-outline">Amueblada</li>
+                    }
+                    @if (p.petsAllowed) {
+                      <li class="badge badge-outline"><i class="fa-solid fa-paw mr-1" aria-hidden="true"></i>Acepta mascotas</li>
+                    }
+                    @for (amenity of p.amenities; track amenity) {
+                      <li class="badge badge-ghost">{{ amenityLabels[amenity] }}</li>
+                    }
+                  </ul>
+                }
 
                 <button type="button" class="btn btn-primary w-full" data-testid="request-info" (click)="inquiryOpen.set(true)">
                   <i class="fa-solid fa-envelope" aria-hidden="true"></i>

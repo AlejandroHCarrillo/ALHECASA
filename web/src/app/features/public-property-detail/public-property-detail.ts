@@ -14,7 +14,7 @@ import { resolveApiError } from '../../shared/utils/api-error';
 import { imageUrl } from '../../shared/utils/image-url';
 import { PublicProperty, PublicPropertiesService } from '../landing/public-properties.service';
 import { InquiryFormModal } from './inquiry-form-modal/inquiry-form-modal';
-import { OPERATION_LABELS, PROPERTY_TYPE_LABELS } from '../properties/property.models';
+import { AMENITY_LABELS, OPERATION_LABELS, PROPERTY_TYPE_LABELS } from '../properties/property.models';
 
 /**
  * Detalle público de una publicación: todos los datos que se publican y la galería completa.
@@ -34,6 +34,7 @@ export class PublicPropertyDetail {
   protected readonly auth = inject(AuthService);
 
   protected readonly typeLabels = PROPERTY_TYPE_LABELS;
+  protected readonly amenityLabels = AMENITY_LABELS;
   protected readonly operationLabels = OPERATION_LABELS;
   protected readonly imageUrl = imageUrl;
 

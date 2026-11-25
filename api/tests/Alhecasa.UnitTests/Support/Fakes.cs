@@ -94,11 +94,19 @@ internal sealed class FakePropertyRepository : IPropertyRepository
 {
     public List<Property> Items { get; } = [];
 
+    /// <summary>Últimas consultas recibidas, para comprobar lo que el servicio normaliza y envía. Los criterios los aplica el repositorio real (pruebas de integración).</summary>
+    public PropertyListQuery? LastListQuery { get; private set; }
+
+    public PublicPropertyQuery? LastPublicQuery { get; private set; }
+
+    public Guid? LastPublicAgencyId { get; private set; }
+
     public Task<Property?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(Items.FirstOrDefault(p => p.Id == id && !p.IsDeleted));
 
     public Task<PagedResult<Property>> GetPagedAsync(PropertyListQuery query, CancellationToken cancellationToken = default)
     {
+        LastListQuery = query;
         var items = Items.Where(p => !p.IsDeleted).ToList();
         return Task.FromResult(new PagedResult<Property>(items, query.Page, query.PageSize, items.Count));
     }
@@ -108,6 +116,8 @@ internal sealed class FakePropertyRepository : IPropertyRepository
 
     public Task<PagedResult<Property>> GetPublishedPagedAsync(PublicPropertyQuery query, Guid? agencyId = null, CancellationToken cancellationToken = default)
     {
+        LastPublicQuery = query;
+        LastPublicAgencyId = agencyId;
         var items = Items
             .Where(p => !p.IsDeleted && p.Status == PropertyStatus.Published && (agencyId is null || p.AgencyId == agencyId) && (query.Ids is null || query.Ids.Contains(p.Id)))
             .ToList();

@@ -4,7 +4,8 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { PagedResult } from '../../shared/models/paged-result';
 import { CreateInquiryRequest } from '../inquiries/inquiry.models';
-import { CurrencyCode, OperationType, PropertyType } from '../properties/property.models';
+import { AdvancedCriteria, NO_ADVANCED_CRITERIA, appendAdvancedParams } from '../properties/property-criteria';
+import { Amenity, CurrencyCode, OperationType, PropertyType } from '../properties/property.models';
 
 /** Lo que la API publica a un visitante: sin calle, código postal ni estado de la propiedad. */
 export interface PublicProperty {
@@ -28,10 +29,15 @@ export interface PublicProperty {
   /** Imágenes en orden de galería; la primera es la portada. */
   imageIds: string[];
   agencyName: string | null;
+  parkingSpaces: number | null;
+  petsAllowed: boolean;
+  furnished: boolean;
+  amenities: Amenity[];
 }
 
-/** Filtros de la portada. Cadena vacía significa «sin filtro». */
-export interface PublicPropertyFilters {
+/** Filtros de la portada: los básicos más los avanzados. Cadena vacía, 
+ull o alse significan «sin filtro». */
+export interface PublicPropertyFilters extends AdvancedCriteria {
   operation: OperationType | '';
   location: string;
   type: PropertyType | '';
@@ -39,7 +45,7 @@ export interface PublicPropertyFilters {
   favoritesOnly: boolean;
 }
 
-export const NO_FILTERS: PublicPropertyFilters = { operation: '', location: '', type: '', favoritesOnly: false };
+export const NO_FILTERS: PublicPropertyFilters = { operation: '', location: '', type: '', favoritesOnly: false, ...NO_ADVANCED_CRITERIA };
 
 @Injectable({ providedIn: 'root' })
 export class PublicPropertiesService {
@@ -79,6 +85,6 @@ export class PublicPropertiesService {
     if (filters.location.trim()) {
       params = params.set('location', filters.location.trim());
     }
-    return this.http.get<PagedResult<PublicProperty>>(this.url, { params });
+    return this.http.get<PagedResult<PublicProperty>>(this.url, { params: appendAdvancedParams(params, filters) });
   }
 }

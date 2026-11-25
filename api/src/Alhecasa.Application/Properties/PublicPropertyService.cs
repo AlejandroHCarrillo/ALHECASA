@@ -28,7 +28,11 @@ public sealed record PublicPropertyDto(
     decimal? ApproximateLatitude,
     decimal? ApproximateLongitude,
     IReadOnlyList<Guid> ImageIds,
-    string? AgencyName);
+    string? AgencyName,
+    int? ParkingSpaces,
+    bool PetsAllowed,
+    bool Furnished,
+    IReadOnlyList<Amenity> Amenities);
 
 /// <summary>Contenido de una imagen listo para enviarse al visitante.</summary>
 public sealed record ImageContent(Stream Content, string ContentType);
@@ -45,7 +49,19 @@ public sealed record PublicPropertyQuery(
     OperationType? Operation = null,
     int Page = 1,
     int PageSize = 10,
-    IReadOnlyList<Guid>? Ids = null)
+    IReadOnlyList<Guid>? Ids = null,
+    decimal? MinPrice = null,
+    decimal? MaxPrice = null,
+    CurrencyCode? Currency = null,
+    int? MinBedrooms = null,
+    int? MinBathrooms = null,
+    int? MinParking = null,
+    decimal? MinArea = null,
+    decimal? MaxArea = null,
+    bool? PetsAllowed = null,
+    bool? Furnished = null,
+    IReadOnlyList<Amenity>? Amenities = null,
+    PropertySort Sort = PropertySort.Recent) : IPropertyCriteria
 {
     public const int MaxPageSize = PropertyListQuery.MaxPageSize;
 
@@ -53,13 +69,19 @@ public sealed record PublicPropertyQuery(
     public const int MaxIds = 100;
 
     /// <summary>Devuelve una copia con la ubicación limpia, los identificadores sin repetir y la paginación acotada a valores seguros.</summary>
-    public PublicPropertyQuery Normalize() => this with
+    /// <remarks>Un criterio inválido (rango invertido, precio sin moneda…) lanza <see cref="DomainException"/>, que responde 400.</remarks>
+    public PublicPropertyQuery Normalize()
     {
-        Location = string.IsNullOrWhiteSpace(Location) ? null : Location.Trim(),
-        Page = Math.Max(1, Page),
-        PageSize = Math.Clamp(PageSize, 1, MaxPageSize),
-        Ids = Ids is { Count: > 0 } ? Ids.Distinct().ToList() : null
-    };
+        PropertyCriteriaRules.Validate(this);
+        return this with
+        {
+            Location = string.IsNullOrWhiteSpace(Location) ? null : Location.Trim(),
+            Page = Math.Max(1, Page),
+            PageSize = Math.Clamp(PageSize, 1, MaxPageSize),
+            Ids = Ids is { Count: > 0 } ? Ids.Distinct().ToList() : null,
+            Amenities = PropertyCriteriaRules.NormalizeAmenities(Amenities)
+        };
+    }
 }
 
 public interface IPublicPropertyService
@@ -136,7 +158,11 @@ public sealed class PublicPropertyService(IPropertyRepository properties, IImage
         ApproximateCoordinate(property.Latitude),
         ApproximateCoordinate(property.Longitude),
         OrderedImageIds(property),
-        PublisherName(property.Agency));
+        PublisherName(property.Agency),
+        property.ParkingSpaces,
+        property.PetsAllowed,
+        property.Furnished,
+        AmenityFlags.ToList(property.Amenities));
 
     /// <summary>
     /// Tres decimales son unos 110 m: se ve la zona en el mapa, no la puerta de la casa. La ubicación exacta, como la calle,

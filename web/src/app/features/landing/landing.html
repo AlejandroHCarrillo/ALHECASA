@@ -61,7 +61,7 @@
         </select>
       </div>
 
-      <div class="col-span-2 flex gap-2 lg:col-span-1">
+      <div class="col-span-2 flex flex-wrap gap-2 lg:col-span-1 lg:flex-nowrap">
         <button
           type="button"
           class="btn btn-sm flex-1 gap-2 lg:flex-none"
@@ -82,8 +82,39 @@
           <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
           Buscar
         </button>
+
+        <!-- Chevron al final de la barra: despliega la barra con el resto de los filtros -->
+        <button
+          type="button"
+          class="btn btn-outline btn-sm gap-1.5 px-2.5"
+          data-testid="toggle-advanced"
+          aria-label="Más filtros"
+          title="Más filtros"
+          aria-controls="advanced-panel"
+          [attr.aria-expanded]="advancedOpen()"
+          (click)="toggleAdvanced()"
+        >
+          @if (advancedCount() > 0) {
+            <span class="badge badge-primary badge-sm" data-testid="advanced-count">{{ advancedCount() }}</span>
+          }
+          <i
+            class="fa-solid fa-chevron-down transition-transform duration-200"
+            [class.rotate-180]="advancedOpen()"
+            aria-hidden="true"
+          ></i>
+        </button>
       </div>
     </div>
+
+    @if (advancedOpen()) {
+      <div id="advanced-panel" class="mx-auto max-h-[60vh] max-w-6xl overflow-y-auto border-t border-base-200 px-4 py-3 sm:px-6">
+        <app-advanced-filters [group]="filterForm.controls.advanced" idPrefix="landing" />
+        <div class="mt-3 flex justify-end gap-2">
+          <button type="button" class="btn btn-ghost btn-sm" (click)="clearFilters()">Limpiar</button>
+          <button type="submit" class="btn btn-primary btn-sm" [disabled]="loading()">Aplicar filtros</button>
+        </div>
+      </div>
+    }
   </form>
 
   <main class="flex-1">
@@ -142,14 +173,14 @@
             <h2 class="text-2xl font-bold">Propiedades disponibles</h2>
             <p class="text-base-content/70" aria-live="polite">
               @if (result(); as page) {
-                {{ page.totalCount }} {{ page.totalCount === 1 ? 'propiedad' : 'propiedades' }}@if (hasFilters()) { con los filtros elegidos}. Las más recientes primero.
+                {{ page.totalCount }} {{ page.totalCount === 1 ? 'propiedad' : 'propiedades' }}@if (hasFilters()) { con los filtros elegidos}. {{ sortDescription() }}
               } @else {
-                Las más recientes primero.
+                {{ sortDescription() }}
               }
             </p>
           </div>
 
-          @if (hasFilters()) {
+          @if (canClear()) {
             <button type="button" class="btn btn-ghost btn-sm self-start sm:self-auto" (click)="clearFilters()">
               <i class="fa-solid fa-xmark" aria-hidden="true"></i>
               Quitar filtros

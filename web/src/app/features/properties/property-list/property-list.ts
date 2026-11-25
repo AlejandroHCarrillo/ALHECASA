@@ -1,33 +1,39 @@
 import { DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { Subject, catchError, debounceTime, distinctUntilChanged, of, switchMap, tap } from 'rxjs';
+import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { Subject, catchError, debounceTime, distinctUntilChanged, merge, of, switchMap, tap } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { UserRole } from '../../../core/models/user-role';
 import { ErrorAlert } from '../../../shared/components/error-alert/error-alert';
 import { Modal } from '../../../shared/components/modal/modal';
+import { AdvancedFilters } from '../../../shared/components/advanced-filters/advanced-filters';
 import { Paginator } from '../../../shared/components/paginator/paginator';
 import { PagedResult } from '../../../shared/models/paged-result';
 import { ToastService } from '../../../shared/services/toast.service';
 import { resolveApiError } from '../../../shared/utils/api-error';
 import { Agency } from '../../users/user.models';
-import { PropertiesService } from '../properties.service';
+import { NO_LIST_FILTERS, PropertiesService, PropertyListFilters } from '../properties.service';
+import { NO_ADVANCED_CRITERIA, countAdvanced, createAdvancedCriteriaForm, normalizeAdvanced } from '../property-criteria';
 import { PropertyDetailModal } from '../property-detail-modal/property-detail-modal';
 import { PropertyFormModal } from '../property-form-modal/property-form-modal';
 import {
   OPERATION_LABELS,
+  OperationType,
   PROPERTY_STATUS_BADGES,
   PROPERTY_STATUS_LABELS,
   PROPERTY_TYPE_LABELS,
   Property,
+  PropertySort,
+  PropertyStatus,
+  PropertyType,
 } from '../property.models';
 
 const PAGE_SIZE = 10;
 
 @Component({
   selector: 'app-property-list',
-  imports: [ReactiveFormsModule, DecimalPipe, ErrorAlert, Modal, Paginator, PropertyFormModal, PropertyDetailModal],
+  imports: [ReactiveFormsModule, DecimalPipe, AdvancedFilters, ErrorAlert, Modal, Paginator, PropertyFormModal, PropertyDetailModal],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './property-list.html',
 })
@@ -44,6 +50,27 @@ export class PropertyList implements OnInit {
   protected readonly statusBadges = PROPERTY_STATUS_BADGES;
 
   protected readonly searchControl = new FormControl('', { nonNullable: true });
+
+  protected readonly statuses = Object.values(PropertyStatus);
+  protected readonly types = Object.values(PropertyType);
+  protected readonly operations = Object.values(OperationType);
+
+  /** Estado, tipo y operación se aplican al elegirlos; los filtros avanzados, al pulsar «Aplicar filtros». */
+  protected readonly filterForm = new FormGroup({
+    status: new FormControl<PropertyStatus | ''>('', { nonNullable: true }),
+    type: new FormControl<PropertyType | ''>('', { nonNullable: true }),
+    operation: new FormControl<OperationType | ''>('', { nonNullable: true }),
+    advanced: createAdvancedCriteriaForm(),
+  });
+
+  protected readonly advancedOpen = signal(false);
+  private readonly applied = signal<PropertyListFilters>(NO_LIST_FILTERS);
+  protected readonly advancedCount = computed(() => countAdvanced(this.applied()));
+  /** Hay algo que quitar: un filtro, un orden distinto del normal o texto de búsqueda. */
+  protected readonly canClear = computed(() => {
+    const f = this.applied();
+    return f.status !== '' || f.type !== '' || f.operation !== '' || f.sort !== PropertySort.Recent || countAdvanced(f) > 0;
+  });
   protected readonly result = signal<PagedResult<Property> | null>(null);
   protected readonly loading = signal(false);
   protected readonly listError = signal<string | null>(null);
@@ -70,7 +97,7 @@ export class PropertyList implements OnInit {
           this.listError.set(null);
         }),
         switchMap(() =>
-          this.propertiesService.getPaged(this.searchControl.value, this.page, PAGE_SIZE).pipe(
+          this.propertiesService.getPaged({ ...this.applied(), search: this.searchControl.value }, this.page, PAGE_SIZE).pipe(
             catchError((err: unknown) => {
               this.listError.set(resolveApiError(err));
               return of(null);
@@ -93,6 +120,16 @@ export class PropertyList implements OnInit {
         this.page = 1;
         this.reload$.next();
       });
+
+    // Estado, tipo y operación se aplican al elegirlos, con los filtros avanzados que ya estaban aplicados.
+    const { status, type, operation } = this.filterForm.controls;
+    merge(status.valueChanges, type.valueChanges, operation.valueChanges)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.applied.update((a) => ({ ...a, status: status.value, type: type.value, operation: operation.value }));
+        this.page = 1;
+        this.reload$.next();
+      });
   }
 
   /** El administrador de plataforma ve todas las inmobiliarias, así que la lista muestra a cuál pertenece cada propiedad. */
@@ -110,6 +147,25 @@ export class PropertyList implements OnInit {
         error: (err: unknown) => this.listError.set(resolveApiError(err)),
       });
     }
+  }
+
+  protected toggleAdvanced(): void {
+    this.advancedOpen.update((open) => !open);
+  }
+
+  protected applyAdvanced(): void {
+    this.applied.update((a) => ({ ...a, ...normalizeAdvanced(this.filterForm.controls.advanced.getRawValue()) }));
+    this.page = 1;
+    this.reload$.next();
+  }
+
+  protected clearFilters(): void {
+    // Sin emitir eventos: restablecer los selectores dispararía una consulta por cada uno.
+    this.filterForm.reset({ status: '', type: '', operation: '' }, { emitEvent: false });
+    this.filterForm.controls.advanced.reset(NO_ADVANCED_CRITERIA, { emitEvent: false });
+    this.applied.update((a) => ({ ...a, ...NO_LIST_FILTERS, search: a.search }));
+    this.page = 1;
+    this.reload$.next();
   }
 
   protected goToPage(page: number): void {

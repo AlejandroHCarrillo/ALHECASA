@@ -15,8 +15,9 @@ using Microsoft.Extensions.Hosting;
 namespace Alhecasa.IntegrationTests.Support;
 
 /// <summary>
-/// SQLite no puede ordenar ni comparar <see cref="DateTimeOffset"/> (lo guarda como texto). Se guarda como entero
-/// solo en las pruebas, para poder ejecutar las mismas consultas que en SQL Server (por ejemplo ORDER BY CreatedAt).
+/// SQLite no puede ordenar ni comparar <see cref="DateTimeOffset"/> (lo guarda como texto) ni decimal. Se guardan como entero
+/// y como double solo en las pruebas, para poder ejecutar las mismas consultas que en SQL Server (por ejemplo ORDER BY CreatedAt
+/// o Price >= x).
 /// </summary>
 internal sealed class SqliteModelCustomizer(ModelCustomizerDependencies dependencies) : RelationalModelCustomizer(dependencies)
 {
@@ -31,8 +32,21 @@ internal sealed class SqliteModelCustomizer(ModelCustomizerDependencies dependen
         {
             property.SetValueConverter(converter);
         }
+
+        var decimalConverter = new DecimalToDoubleConverter();
+        foreach (var property in modelBuilder.Model.GetEntityTypes()
+                     .SelectMany(e => e.GetProperties())
+                     .Where(p => p.ClrType == typeof(decimal) || p.ClrType == typeof(decimal?)))
+        {
+            property.SetValueConverter(property.ClrType == typeof(decimal?)
+                ? new ValueConverter<decimal?, double?>(v => v == null ? null : (double)v.Value, v => v == null ? null : (decimal)v.Value)
+                : decimalConverter);
+        }
     }
 }
+
+/// <summary>Guarda los decimal como double solo en las pruebas (ver <see cref="SqliteModelCustomizer"/>).</summary>
+internal sealed class DecimalToDoubleConverter() : ValueConverter<decimal, double>(v => (double)v, v => (decimal)v);
 
 /// <summary>
 /// Levanta la API real en memoria con una base SQLite efímera (una por instancia).
@@ -160,6 +174,18 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             await db.SaveChangesAsync();
         });
         return user;
+    }
+
+    /// <summary>Agrega una propiedad con todos sus datos (para probar filtros por precio, recámaras, amenidades…).</summary>
+    public async Task<Property> AddPropertyAsync(Guid agencyId, PropertyData data)
+    {
+        var property = new Property(agencyId, data);
+        await WithDbAsync(async db =>
+        {
+            db.Properties.Add(property);
+            await db.SaveChangesAsync();
+        });
+        return property;
     }
 
     public async Task<Property> AddPropertyAsync(
