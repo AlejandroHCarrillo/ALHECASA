@@ -20,12 +20,19 @@ import { USER_ROLE_LABELS } from '../../core/models/user-role';
             </div>
             <div>
               <dt class="text-xs uppercase text-base-content/60">Rol</dt>
-              <dd>{{ roleLabels[user.role] }}</dd>
+              <dd>{{ user.isIndividual ? 'Particular' : roleLabels[user.role] }}</dd>
             </div>
-            <div>
-              <dt class="text-xs uppercase text-base-content/60">Inmobiliaria</dt>
-              <dd>{{ user.agencyName ?? 'Sin inmobiliaria' }}</dd>
-            </div>
+            @if (user.isIndividual) {
+              <div>
+                <dt class="text-xs uppercase text-base-content/60">Cuenta</dt>
+                <dd>Cuenta gratuita de particular</dd>
+              </div>
+            } @else {
+              <div>
+                <dt class="text-xs uppercase text-base-content/60">Inmobiliaria</dt>
+                <dd>{{ user.agencyName ?? 'Sin inmobiliaria' }}</dd>
+              </div>
+            }
           </dl>
         }
       </div>

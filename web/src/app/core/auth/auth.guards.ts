@@ -27,6 +27,14 @@ export const guestGuard: CanActivateFn = () => {
  */
 export const guestMatch: CanMatchFn = () => !inject(AuthService).isAuthenticated();
 
+/** Solo para inmobiliarias con personal: la cuenta gratuita de un particular tiene un solo usuario y no administra usuarios. */
+export const companyGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+
+  return auth.user()?.isIndividual ? router.createUrlTree(['/inicio']) : true;
+};
+
 /** Exige alguno de los roles indicados. */
 export const roleGuard =
   (...roles: UserRole[]): CanActivateFn =>

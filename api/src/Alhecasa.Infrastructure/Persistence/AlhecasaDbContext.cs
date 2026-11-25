@@ -18,6 +18,10 @@ public sealed class AlhecasaDbContext(
 
     public DbSet<PropertyImage> PropertyImages => Set<PropertyImage>();
 
+    public DbSet<Inquiry> Inquiries => Set<Inquiry>();
+
+    public DbSet<InquiryFollowUp> InquiryFollowUps => Set<InquiryFollowUp>();
+
     // Propiedades del contexto usadas por los filtros globales: EF las evalúa en cada consulta
     // con los valores del usuario de la solicitud actual.
     private bool CurrentIsPlatformAdmin => currentUser.IsPlatformAdmin;
@@ -51,6 +55,15 @@ public sealed class AlhecasaDbContext(
         modelBuilder.Entity<PropertyImage>().HasQueryFilter(i =>
             !i.IsDeleted
             && (CurrentIsPlatformAdmin || (CurrentAgencyId != null && i.AgencyId == CurrentAgencyId)));
+
+        // Las solicitudes de informes llegan sin sesión, pero solo las lee el personal de la inmobiliaria dueña.
+        modelBuilder.Entity<Inquiry>().HasQueryFilter(i =>
+            !i.IsDeleted
+            && (CurrentIsPlatformAdmin || (CurrentAgencyId != null && i.AgencyId == CurrentAgencyId)));
+
+        modelBuilder.Entity<InquiryFollowUp>().HasQueryFilter(f =>
+            !f.IsDeleted
+            && (CurrentIsPlatformAdmin || (CurrentAgencyId != null && f.AgencyId == CurrentAgencyId)));
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

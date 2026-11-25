@@ -105,4 +105,22 @@ describe('AuthService', () => {
     expect(localStorage.getItem('alhecasa.session')).toBeNull();
     expect(router.url).toBe('/login?returnUrl=%2Fpropiedades');
   });
+  it('registers a free account and keeps the session it returns', () => {
+    const auth = setup();
+
+    auth.register({ firstName: 'Ana', lastName: 'Lopez', email: 'a@b.com', password: 'Correct-Horse-9' }).subscribe();
+    const request = http.expectOne(`${environment.apiUrl}/auth/register`);
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ firstName: 'Ana', lastName: 'Lopez', email: 'a@b.com', password: 'Correct-Horse-9' });
+    request.flush({
+      accessToken: 'jwt',
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      user: { id: '1', fullName: 'Ana Lopez', email: 'a@b.com', role: UserRole.AgencyAdmin, agencyId: 'x', agencyName: 'Ana Lopez', isIndividual: true },
+    });
+
+    expect(auth.isAuthenticated()).toBe(true);
+    expect(auth.token()).toBe('jwt');
+    expect(auth.user()?.isIndividual).toBe(true);
+    expect(JSON.parse(localStorage.getItem('alhecasa.session') ?? '{}').token).toBe('jwt');
+  });
 });

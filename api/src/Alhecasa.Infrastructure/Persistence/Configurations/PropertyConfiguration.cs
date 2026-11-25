@@ -27,6 +27,10 @@ internal sealed class PropertyConfiguration : IEntityTypeConfiguration<Property>
         builder.Property(p => p.ConstructionArea).HasPrecision(10, 2);
         builder.Property(p => p.LandArea).HasPrecision(10, 2);
 
+        // Grados con 6 decimales (unos 10 cm). Los rangos los valida el dominio y PropertyRequestValidator.
+        builder.Property(p => p.Latitude).HasPrecision(9, 6);
+        builder.Property(p => p.Longitude).HasPrecision(9, 6);
+
         builder.Property(p => p.Street).HasMaxLength(200);
         builder.Property(p => p.Neighborhood).HasMaxLength(100);
         builder.Property(p => p.City).IsRequired().HasMaxLength(100);

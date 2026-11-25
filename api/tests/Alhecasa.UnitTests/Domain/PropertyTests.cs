@@ -76,6 +76,62 @@ public sealed class PropertyTests
         Assert.Throws<DomainException>(() => new Property(AgencyId, ValidData() with { LandArea = -1 }));
     }
 
+    [Theory]
+    [InlineData(90.1, 0)]
+    [InlineData(-90.1, 0)]
+    [InlineData(0, 180.1)]
+    [InlineData(0, -180.1)]
+    public void Coordinates_OutOfRange_AreRejected(double latitude, double longitude)
+    {
+        var data = ValidData() with { Latitude = (decimal)latitude, Longitude = (decimal)longitude };
+
+        Assert.Throws<DomainException>(() => new Property(AgencyId, data));
+    }
+
+    [Fact]
+    public void Coordinates_MustComeTogether()
+    {
+        Assert.Throws<DomainException>(() => new Property(AgencyId, ValidData() with { Latitude = 19.4m }));
+        Assert.Throws<DomainException>(() => new Property(AgencyId, ValidData() with { Longitude = -99.1m }));
+    }
+
+    [Fact]
+    public void Coordinates_AreStoredRoundedToSixDecimals_AndTheLimitsAreAccepted()
+    {
+        var property = new Property(AgencyId, ValidData() with { Latitude = 19.4326077m, Longitude = -99.1332079m });
+
+        Assert.Equal(19.432608m, property.Latitude);
+        Assert.Equal(-99.133208m, property.Longitude);
+
+        property.SetCoordinates(90m, -180m);
+        Assert.Equal(90m, property.Latitude);
+        Assert.Equal(-180m, property.Longitude);
+    }
+
+    [Fact]
+    public void SetCoordinates_CanRemoveTheLocation_ButNotLeaveItHalfSet()
+    {
+        var property = new Property(AgencyId, ValidData() with { Latitude = 19.4m, Longitude = -99.1m });
+
+        Assert.Throws<DomainException>(() => property.SetCoordinates(19.4m, null));
+        Assert.Equal(19.4m, property.Latitude);
+
+        property.SetCoordinates(null, null);
+        Assert.Null(property.Latitude);
+        Assert.Null(property.Longitude);
+    }
+
+    [Fact]
+    public void Update_WithoutCoordinates_RemovesTheLocation()
+    {
+        var property = new Property(AgencyId, ValidData() with { Latitude = 19.4m, Longitude = -99.1m });
+
+        property.Update(ValidData());
+
+        Assert.Null(property.Latitude);
+        Assert.Null(property.Longitude);
+    }
+
     [Fact]
     public void OptionalFields_CanBeOmitted()
     {

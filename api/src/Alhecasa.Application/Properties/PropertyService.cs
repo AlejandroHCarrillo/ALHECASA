@@ -13,6 +13,12 @@ public interface IPropertyService
 
     Task<PropertyDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Las propiedades publicadas de la inmobiliaria del usuario, con el mismo contenido y el mismo orden con que las ve un visitante
+    /// (solo datos públicos). Solo para personal de una inmobiliaria: el administrador de plataforma no tiene una.
+    /// </summary>
+    Task<PagedResult<PublicPropertyDto>> GetGalleryAsync(int page, int pageSize, CancellationToken cancellationToken = default);
+
     Task<PropertyDto> CreateAsync(CreatePropertyRequest request, CancellationToken cancellationToken = default);
 
     Task<PropertyDto> UpdateAsync(Guid id, UpdatePropertyRequest request, CancellationToken cancellationToken = default);
@@ -47,13 +53,29 @@ public sealed class PropertyService(
     ICurrentUser currentUser,
     IValidator<CreatePropertyRequest> createValidator,
     IValidator<UpdatePropertyRequest> updateValidator,
-    TimeProvider timeProvider) : IPropertyService
+    TimeProvider timeProvider,
+    AccountLimits accountLimits) : IPropertyService
 {
     public async Task<PagedResult<PropertyDto>> GetPagedAsync(PropertyListQuery query, CancellationToken cancellationToken = default)
     {
         EnsureCanManageProperties();
         var page = await properties.GetPagedAsync(query.Normalize(), cancellationToken);
         return page.Map(ToDto);
+    }
+
+    public async Task<PagedResult<PublicPropertyDto>> GetGalleryAsync(int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        if (currentUser.Role is not (UserRole.AgencyAdmin or UserRole.Supervisor or UserRole.Seller))
+        {
+            throw new ForbiddenException("Only agency staff have a gallery.");
+        }
+
+        var agencyId = currentUser.AgencyId
+            ?? throw new ForbiddenException("Your account does not belong to an agency.");
+
+        var query = new PublicPropertyQuery(Page: page, PageSize: pageSize).Normalize();
+        var result = await properties.GetPublishedPagedAsync(query, agencyId, cancellationToken);
+        return result.Map(PublicPropertyService.ToDto);
     }
 
     public async Task<PropertyDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -74,8 +96,9 @@ public sealed class PropertyService(
             throw new DomainException(PublishNeedsImagesMessage);
         }
 
-        var agencyId = await ResolveAgencyIdAsync(request.AgencyId, cancellationToken);
-        var property = new Property(agencyId, request.ToData());
+        var agency = await ResolveAgencyAsync(request.AgencyId, cancellationToken);
+        await EnsureWithinPlanAsync(agency, cancellationToken);
+        var property = new Property(agency.Id, request.ToData());
 
         await properties.AddAsync(property, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -221,7 +244,7 @@ public sealed class PropertyService(
         }
     }
 
-    private async Task<Guid> ResolveAgencyIdAsync(Guid? requestedAgencyId, CancellationToken cancellationToken)
+    private async Task<Agency> ResolveAgencyAsync(Guid? requestedAgencyId, CancellationToken cancellationToken)
     {
         Guid agencyId;
 
@@ -241,12 +264,24 @@ public sealed class PropertyService(
                 ?? throw new ForbiddenException("Your account does not belong to an agency.");
         }
 
-        if (await agencies.GetByIdAsync(agencyId, cancellationToken) is null)
+        return await agencies.GetByIdAsync(agencyId, cancellationToken)
+            ?? throw new NotFoundException("Agency not found.");
+    }
+
+    /// <summary>La cuenta gratuita de un particular tiene un tope de propiedades (borradores incluidos).</summary>
+    private async Task EnsureWithinPlanAsync(Agency agency, CancellationToken cancellationToken)
+    {
+        if (!agency.IsIndividual)
         {
-            throw new NotFoundException("Agency not found.");
+            return;
         }
 
-        return agencyId;
+        var limit = accountLimits.IndividualMaxProperties;
+        if (await properties.CountByAgencyAsync(agency.Id, cancellationToken) >= limit)
+        {
+            throw new PlanLimitException(
+                $"Tu cuenta gratuita permite hasta {limit} {(limit == 1 ? "propiedad" : "propiedades")}. Elimina una para publicar otra.");
+        }
     }
 
     private static PropertyDto ToDto(Property p) => new(
@@ -269,6 +304,8 @@ public sealed class PropertyService(
         p.Bathrooms,
         p.ConstructionArea,
         p.LandArea,
+        p.Latitude,
+        p.Longitude,
         PublicPropertyService.OrderedImageIds(p),
         p.CreatedAt,
         p.UpdatedAt);

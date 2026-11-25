@@ -27,8 +27,10 @@ Reglas de negocio y entidades, sin dependencias externas.
 - `BaseEntity`: `Id` (Guid versión 7, generado en código), auditoría (`CreatedAt`, `UpdatedAt`) y borrado lógico (`IsDeleted`, `DeletedAt`).
 - `User`: persona con acceso. Tiene rol, inmobiliaria opcional, estado activo y último acceso.
 - `Agency`: inmobiliaria. Es el límite de aislamiento de datos (tenant).
+- `AgencyKind` (`Company` \| `Individual`): una cuenta gratuita de particular es una `Agency` de tipo `Individual` con un solo usuario. Así sus propiedades y solicitudes quedan aisladas con el mismo filtro de tenant, sin un modelo paralelo (ver «Cuentas gratuitas de particulares»).
 - `Property`: propiedad del inventario de una inmobiliaria (tenant). Sus invariantes (título, ciudad y estado obligatorios, precio mayor a cero, sin cuartos ni áreas negativos) se validan en el dominio. Por ahora lleva también precio, operación y estado; la estrategia (F0-07) los separa en una publicación (*Listing*).
 - `PropertyImage`: imagen de una propiedad (tenant). Guarda solo metadatos (clave de almacenamiento, tipo, tamaño, orden); el archivo vive en el almacenamiento. `Property` controla la galería (`AddImage`, `RemoveImage`) y su tope de 10.
+- `Inquiry`: solicitud de informes de una propiedad (tenant, agregado). Guarda los datos del prospecto, su pregunta, el estado (`New`, `InProgress`, `Closed`) y el título de la propiedad al momento de la solicitud. Controla su historial (`InquiryFollowUp`: respuesta o nota, con el nombre del autor al momento de escribirla) con tope de 200 registros; una respuesta pasa el estado a `InProgress`.
 - `PropertyType`, `OperationType`, `PropertyStatus`, `CurrencyCode`: enumeraciones guardadas como texto.
 - `UserRole`: `PlatformAdmin`, `AgencyAdmin`, `Supervisor`, `Seller` (vendedor), `Client`. El rol se guarda como texto, así que añadir valores no requirió migración.
 - `DomainException`: violación de una regla del dominio.
@@ -90,6 +92,21 @@ Se eligió una entidad `User` propia para mantener **Domain limpio**; ASP.NET Id
 
 Para no revelar qué correos están registrados, el login responde siempre con el mismo mensaje y, si el usuario no existe, ejecuta una verificación contra un hash ficticio para igualar el tiempo de respuesta.
 
+### Cuentas gratuitas de particulares
+
+Quien vende o renta por su cuenta se registra solo (`POST /api/auth/register`, pantalla `/registro`) y publica sin costo. **Decisión:** en lugar de crear un modelo paralelo para el particular, el registro crea un espacio propio —una `Agency` de tipo `Individual`, con el nombre de la persona— y un único usuario `AgencyAdmin` en él, todo en una transacción. Así propiedades, imágenes, galería, solicitudes de informes y aislamiento entre cuentas funcionan sin cambios, porque ya dependen de `AgencyId`.
+
+Reglas propias de la cuenta gratuita:
+
+- **Tope de propiedades** (`AccountLimits:IndividualMaxProperties`, por defecto 3; cuentan los borradores y no las eliminadas). Se revisa en `PropertyService.CreateAsync` y se responde `422` (`PlanLimitException`, con un mensaje en español listo para mostrar). Las inmobiliarias (`Company`) no tienen tope.
+- **No administra usuarios**: `UserService` le niega `/api/users` (`403`), y el menú y la ruta `/usuarios` se ocultan con `isIndividual` (que viaja en `CurrentUserDto` y en `GET /api/agencies`).
+- **El servidor fija el rol y el espacio**; el cuerpo del registro no puede elegirlos, así que no hay escalada de privilegios.
+- Alta limitada por IP (5 por hora) porque cada alta crea un espacio y un usuario.
+
+Es el puente hacia el modelo `Membership` de la estrategia (particular = usuario estándar sin membresía): cuando exista, estos espacios `Individual` se migran a usuarios sin organización.
+
+**Lo que esto no incluye todavía** (ver «Limitaciones»): verificación de correo, moderación de anuncios y planes de pago.
+
 ### JWT
 
 - Algoritmo HMAC-SHA256. Claims: `sub`, `email`, `name`, `role`, `agency_id`, `jti` e `iat`.
@@ -101,7 +118,7 @@ Para no revelar qué correos están registrados, el login responde siempre con e
 ### Seguridad por defecto
 
 - **Política de autorización por defecto:** todo endpoint exige autenticación, salvo los marcados con `[AllowAnonymous]` (login, `/health` y el catálogo público `/api/public/properties`).
-- **Catálogo público:** es el único lugar donde se lee el inventario sin el filtro por inmobiliaria (`IgnoreQueryFilters`), porque el visitante no tiene una. La visibilidad se define de forma explícita en `PropertyRepository.GetPublishedPagedAsync` (publicada, no eliminada, inmobiliaria activa y no eliminada), el contrato `PublicPropertyDto` omite calle y código postal, y el endpoint tiene límite de 120 solicitudes por minuto por IP.
+- **Catálogo público:** es el único lugar donde se lee el inventario sin el filtro por inmobiliaria (`IgnoreQueryFilters`), porque el visitante no tiene una. La visibilidad se define de forma explícita en `PropertyRepository.GetPublishedPagedAsync` (publicada, no eliminada, inmobiliaria activa y no eliminada), el contrato `PublicPropertyDto` omite calle y código postal y solo trae la ubicación redondeada a unos 110 m (`PublicPropertyService.ApproximateCoordinate`), y el endpoint tiene límite de 120 solicitudes por minuto por IP.
 - **Roles en los controladores:** `UsersController` y `AgenciesController` exigen `PlatformAdmin` o `AgencyAdmin`.
 - **Límite de intentos:** 10 por minuto por IP en el login.
 - **Imágenes de propiedades (1 a 10, hasta 5 MB cada una):**
@@ -160,6 +177,10 @@ web/src/app/
 - **Estilos:** Tailwind CSS 4 con DaisyUI 5, e iconos de Font Awesome Free. No se usan otras librerías de UI. La paleta, las fuentes (Manrope e Inter, servidas desde la propia app) y el logo salen de la [identidad visual](identidad-visual.md), implementada como tema `alhecasa` en `styles.css`.
 - **Rutas con carga diferida** y guards: `authGuard` (exige sesión), `guestGuard` (solo visitantes) y `roleGuard` (exige rol). El menú muestra un ítem solo si el usuario puede abrir esa ruta.
 - **Portada pública en `/`:** la ruta usa `canMatch: [guestMatch]`, así que solo coincide sin sesión; con sesión el enrutador sigue a la ruta siguiente y `/` abre el área de trabajo (`/inicio`). Lista las propiedades publicadas con `GET /api/public/properties` (sin token) y enlaza al login.
+- **Mapa en el detalle público:** `app-location-map` (`shared/components/location-map`) usa Leaflet con mosaicos de OpenStreetMap y dibuja un **círculo de 250 m**, no un marcador, porque el producto no publica la dirección exacta: el personal captura la ubicación exacta (campo «latitud, longitud» del formulario, copiada de Google Maps; no hay geocodificación), pero el visitante solo recibe coordenadas redondeadas, y el círculo es mayor que el redondeo. Sin ubicación, el detalle no muestra la sección. Leaflet se carga de forma diferida (`LEAFLET_LOADER`, un `InjectionToken` que las pruebas sustituyen), así que solo lo descarga quien abre un detalle con mapa; si falla la carga se avisa en el recuadro. La rueda del ratón no hace zoom para no atrapar el scroll. **Uso de OpenStreetMap:** los mosaicos públicos son gratuitos pero con política de uso razonable y atribución obligatoria (ya se muestra); para un tráfico alto en producción hay que contratar un proveedor de mosaicos o alojar los propios y cambiar `TILE_URL`. Las propiedades de ejemplo reciben sus coordenadas al iniciar (`EnsureSampleCoordinatesAsync`, solo si no tienen).
+- **Galería de la inmobiliaria (`/galeria`):** opción del menú para `AgencyAdmin`, `Supervisor` y `Seller` (no para el administrador de plataforma, que no pertenece a una inmobiliaria). Muestra las propiedades publicadas de la inmobiliaria del usuario con la misma tarjeta que la portada pública (`app-public-property-card`, compartida: así no pueden diverger) y datos que vienen de `GET /api/properties/gallery`, que devuelve el `PublicPropertyDto` y reutiliza las reglas de visibilidad pública (`PropertyRepository.GetPublishedPagedAsync` con el filtro opcional `agencyId`, que solo usa ese endpoint y no el catálogo público). Es de solo lectura; las tarjetas enlazan al detalle público. Los corazones funcionan igual que afuera (`localStorage`).
+- **Solicitudes de informes:** en el detalle público (`/publicaciones/:id`) el botón «Pedir informes» abre un modal (`app-inquiry-form-modal`) con nombre, teléfono, correo y pregunta, con las mismas reglas que la API; si hay sesión, sugiere nombre y correo. Envía `POST /api/public/properties/{id}/inquiries`, que no devuelve datos (`201` vacío) y tiene su propio límite por IP porque es una escritura anónima. El personal (`AgencyAdmin`, `Supervisor`, `Seller`) las atiende en «Solicitudes de informes» (`/solicitudes`): lista con filtro por estado y búsqueda; al abrir una fila ve los datos del prospecto (con enlaces `tel:` y `mailto:`), su pregunta, el historial y un formulario para registrar una respuesta o una nota y cambiar el estado. **No se envía correo desde el sistema** (no hay infraestructura de correo todavía): el historial es constancia de lo que el personal contestó por su cuenta; el modal ofrece un enlace `mailto:` ya redactado. La solicitud pertenece a la inmobiliaria de la propiedad (filtro global de tenant), así que el aislamiento entre inmobiliarias es el mismo que el de las propiedades; el administrador de plataforma no las ve.
+- **Cuenta gratuita (`/registro`):** formulario de nombre, apellidos, correo y contraseña (con las mismas reglas que la API y confirmación). Al terminar, la API ya devuelve la sesión y se abre `/propiedades` para publicar la primera propiedad. El registro se ofrece en la portada («Publica gratis» en la cabecera y en la presentación), en el detalle público y en el login. Con `isIndividual`, el menú oculta «Usuarios» y la barra muestra «Cuenta gratuita» en lugar del rol; la ruta `/usuarios` se protege con `companyGuard`. El `422` del tope de propiedades se muestra con el mensaje de la API (`resolveApiError`).
 - **«Me gusta» en publicaciones:** `LikesService` (`core/likes`) guarda en `localStorage` (clave `alhecasa.likes`) la lista de identificadores de las publicaciones que le gustan al visitante, y `app-like-button` es el corazón que se usa en la lista y en el detalle. Es **solo del navegador**, sin backend: funciona igual con o sin sesión y cerrar sesión no lo borra (la clave es independiente de la de sesión), pero no viaja entre dispositivos ni navegadores, y se pierde si el visitante borra los datos del sitio. Guarda como máximo 100 (descarta los más antiguos), el mismo tope de ids que acepta el catálogo público por solicitud, ignora datos dañados y, si el navegador no deja escribir, el corazón sigue marcado solo mientras la pestaña esté abierta. Se sincroniza entre pestañas con el evento `storage`. El filtro **«Mis favoritas»** de la portada pide a la API solo esas publicaciones con `GET /api/public/properties?ids=…` (las mismas reglas de visibilidad: una favorita que ya no está publicada deja de aparecer); sin ninguna favorita no se llama a la API, porque una lista vacía de ids significa «sin filtro». Si más adelante se quisiera conservar entre dispositivos, habría que moverlo al servidor asociado a la cuenta.
 - **Interceptor HTTP:** añade el token solo a peticiones hacia la API propia (nunca a terceros) y cierra la sesión ante un 401, excepto en el login. Cuando el usuario pulsa «Cerrar sesión» vuelve a la portada pública (`/`); cuando la sesión vence (401) va al login, con `returnUrl` para regresar a la pantalla en la que estaba.
 - **Redirección segura tras el login:** solo se aceptan rutas internas (`/ruta`); se rechaza `//host` para evitar redirecciones abiertas.
@@ -179,6 +200,8 @@ web/src/app/
 | Eliminar usuario | Cualquiera (menos a sí mismo) | Solo de su inmobiliaria (menos a sí mismo) | Sin acceso |
 | Ver inmobiliarias | Todas | Solo la suya | Sin acceso |
 | Ver, crear, editar y eliminar propiedades | Todas (al crear debe elegir inmobiliaria) | Solo las de su inmobiliaria | `Supervisor` y `Seller`: solo las de su inmobiliaria. `Client`: sin acceso |
+| Ver y atender solicitudes de informes | Sin acceso | Solo las de su inmobiliaria | `Supervisor` y `Seller`: solo las de su inmobiliaria. `Client`: sin acceso |
+| Registrarse y publicar gratis | Sin acceso (no aplica) | Público, sin sesión: `POST /api/auth/register` crea un espacio `Individual` con un usuario `AgencyAdmin` (tope de propiedades; no administra usuarios) | Público, sin sesión (igual) |
 
 Nadie puede cambiar su propio rol, desactivarse ni eliminarse.
 
@@ -207,7 +230,8 @@ Lo que este alcance **no** incluye, para que nadie lo dé por hecho:
 - **Recuperar y cambiar contraseña**, verificación de correo y bloqueo de cuenta tras intentos fallidos. Solo existe el límite de intentos por IP.
 - **Control de concurrencia optimista** (dos ediciones simultáneas del mismo usuario: gana la última).
 - **Cierre de sesión en el servidor:** el acceso se revoca cuando la cuenta cambia, pero no hay lista de tokens revocados: un token de una cuenta sana sigue siendo válido hasta que vence, aunque el usuario "cierre sesión" en el navegador. Requiere un identificador de sesión o una lista de `jti` revocados.
-- **Registro público y alta de inmobiliarias:** hoy las inmobiliarias solo se crean con el seeding o directamente en la base. `GET /api/agencies` es de solo lectura.
+- **Registro de inmobiliarias:** hoy las inmobiliarias solo se crean con el seeding o directamente en la base (`GET /api/agencies` es de solo lectura). El registro público existe solo para particulares (cuenta gratuita).
+- **Cuenta gratuita sin verificación ni moderación:** el correo no se verifica (no hay infraestructura de correo) y los anuncios se publican de inmediato, sin revisión. El `409` del registro revela que un correo ya tiene cuenta. Un particular se publica como «Particular»: el catálogo público nunca muestra su nombre real (`PublicPropertyService.IndividualPublisherName`); el nombre queda solo en su cuenta.
 - **Entidades `Client`, `Plan`, `Property` y `Listing`:** forman parte del propósito del proyecto pero aún no están implementadas.
 - **Despliegue:** no hay Dockerfile ni pipeline de CI.
 

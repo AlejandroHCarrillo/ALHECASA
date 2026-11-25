@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { PagedResult } from '../../shared/models/paged-result';
+import { CreateInquiryRequest } from '../inquiries/inquiry.models';
 import { CurrencyCode, OperationType, PropertyType } from '../properties/property.models';
 
 /** Lo que la API publica a un visitante: sin calle, código postal ni estado de la propiedad. */
@@ -21,6 +22,9 @@ export interface PublicProperty {
   bathrooms: number | null;
   constructionArea: number | null;
   landArea: number | null;
+  /** Ubicación aproximada (redondeada a unos 110 m): la API no publica la exacta. Nulas si la propiedad no tiene mapa. */
+  approximateLatitude: number | null;
+  approximateLongitude: number | null;
   /** Imágenes en orden de galería; la primera es la portada. */
   imageIds: string[];
   agencyName: string | null;
@@ -45,6 +49,11 @@ export class PublicPropertiesService {
   /** Detalle de una propiedad publicada. Responde 404 si no existe o ya no está publicada. */
   getById(id: string): Observable<PublicProperty> {
     return this.http.get<PublicProperty>(`${this.url}/${id}`);
+  }
+
+  /** Pide informes de una propiedad publicada. Sin sesión; no devuelve nada del registro. 404 si ya no está publicada, 429 si se manda demasiado. */
+  requestInfo(propertyId: string, request: CreateInquiryRequest): Observable<void> {
+    return this.http.post<void>(`${this.url}/${propertyId}/inquiries`, request);
   }
 
   /**

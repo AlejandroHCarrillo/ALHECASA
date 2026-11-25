@@ -5,6 +5,7 @@ import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { environment } from '../../../environments/environment';
 import { PublicProperty } from '../landing/public-properties.service';
+import { LEAFLET_LOADER } from '../../shared/components/location-map/location-map';
 import { PublicPropertyDetail } from './public-property-detail';
 
 const sample = (overrides: Partial<PublicProperty> = {}): PublicProperty => ({
@@ -22,6 +23,8 @@ const sample = (overrides: Partial<PublicProperty> = {}): PublicProperty => ({
   bathrooms: 5,
   constructionArea: 520,
   landArea: null,
+  approximateLatitude: null,
+  approximateLongitude: null,
   imageIds: ['img-a', 'img-b', 'img-c'],
   agencyName: 'Demo Real Estate',
   ...overrides,
@@ -36,6 +39,8 @@ describe('PublicPropertyDetail', () => {
         provideRouter([{ path: 'publicaciones/:id', component: PublicPropertyDetail }]),
         provideHttpClient(),
         provideHttpClientTesting(),
+        // El mapa real no se carga en estas pruebas: aquí solo importa si el detalle lo muestra o no.
+        { provide: LEAFLET_LOADER, useValue: () => new Promise(() => undefined) },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -163,11 +168,43 @@ describe('PublicPropertyDetail', () => {
     expect(root(harness).querySelector('app-like-button button')?.getAttribute('aria-pressed')).toBe('true');
   });
 
+  it('shows the map with the approximate zone when the property has a location', async () => {
+    const harness = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample({ approximateLatitude: 19.433, approximateLongitude: -99.133 }));
+    harness.detectChanges();
+
+    const section = root(harness).querySelector('[data-testid="location"]');
+    expect(section).not.toBeNull();
+    expect(section?.querySelector('app-location-map')).not.toBeNull();
+    expect(section?.textContent).toContain('zona aproximada');
+    expect(section?.querySelector('[role="region"]')?.getAttribute('aria-label')).toContain('Casa moderna con alberca');
+  });
+
+  it('does not show a map when the property has no location', async () => {
+    const harness = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample());
+    harness.detectChanges();
+
+    expect(root(harness).querySelector('[data-testid="location"]')).toBeNull();
+    expect(root(harness).querySelector('app-location-map')).toBeNull();
+  });
+
   it('offers the login only to visitors without a session', async () => {
     const harness = await open();
     http.expectOne(detailUrl('p-1')).flush(sample());
     harness.detectChanges();
 
     expect(root(harness).querySelectorAll('a[href="/login"]')).toHaveLength(1);
+  });
+  it('offers "Pedir informes" and opens the request form for that property', async () => {
+    const harness = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample());
+    harness.detectChanges();
+    expect(root(harness).querySelector('app-inquiry-form-modal')).toBeNull();
+
+    click(harness, '[data-testid="request-info"]');
+
+    expect(root(harness).querySelector('app-inquiry-form-modal')).not.toBeNull();
+    expect(root(harness).querySelector('dialog')?.textContent).toContain('Casa moderna con alberca');
   });
 });

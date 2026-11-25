@@ -18,13 +18,17 @@ public interface IPropertyRepository
     /// <summary>Una propiedad con las mismas reglas de visibilidad pública que el listado, o null si no es visible.</summary>
     Task<Property?> GetPublishedByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
-    Task<PagedResult<Property>> GetPublishedPagedAsync(PublicPropertyQuery query, CancellationToken cancellationToken = default);
+    /// <param name="agencyId">Si se indica, solo las publicadas de esa inmobiliaria (la galería del personal). No es un filtro del catálogo público.</param>
+    Task<PagedResult<Property>> GetPublishedPagedAsync(PublicPropertyQuery query, Guid? agencyId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Busca una imagen por su identificador para servirla sin sesión: ignora el aislamiento por inmobiliaria
     /// y descarta las imágenes de propiedades eliminadas.
     /// </summary>
     Task<PropertyImage?> GetImageForServingAsync(Guid imageId, CancellationToken cancellationToken = default);
+
+    /// <summary>Propiedades no eliminadas de una inmobiliaria (borradores incluidos), sin importar quién consulta.</summary>
+    Task<int> CountByAgencyAsync(Guid agencyId, CancellationToken cancellationToken = default);
 
     Task AddAsync(Property entity, CancellationToken cancellationToken = default);
 }

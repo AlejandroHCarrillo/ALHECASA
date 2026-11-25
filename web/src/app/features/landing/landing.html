@@ -4,10 +4,15 @@
       <a routerLink="/" aria-label="ALHECASA, inicio">
         <app-logo />
       </a>
-      <a routerLink="/login" class="btn btn-primary btn-sm sm:btn-md">
-        <i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>
-        Iniciar sesión
-      </a>
+      <div class="flex items-center gap-2">
+        <a routerLink="/registro" class="btn btn-outline btn-primary btn-sm sm:btn-md" data-testid="register-header">
+          Publica gratis
+        </a>
+        <a routerLink="/login" class="btn btn-primary btn-sm sm:btn-md">
+          <i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>
+          Iniciar sesión
+        </a>
+      </div>
     </div>
   </header>
 
@@ -83,7 +88,8 @@
 
   <main class="flex-1">
     <!-- 1. Presentación -->
-    <section class="bg-base-200">
+    <section class="relative isolate overflow-hidden bg-base-200">
+      <div class="hero-bg" aria-hidden="true"></div>
       <div class="mx-auto max-w-6xl space-y-10 px-4 py-12 sm:px-6 lg:py-16">
        <div class="grid items-center gap-8 lg:grid-cols-5">
         <div class="space-y-5 lg:col-span-3">
@@ -91,17 +97,23 @@
           <h1 class="text-4xl font-extrabold leading-tight sm:text-5xl">Encuentra tu próximo espacio</h1>
           <p class="text-xl text-base-content/80">Compra, vende o renta con confianza.</p>
           <p class="text-base-content/80">
-            Aquí ves las propiedades que publican las inmobiliarias. Si trabajas en una, inicia sesión para
-            administrar las tuyas. <span class="font-semibold text-primary">El lugar donde comienza tu historia.</span>
+            Aquí ves las propiedades que publican las inmobiliarias y los particulares. Si vendes o rentas por tu
+            cuenta, crea una cuenta gratis y publica tu anuncio. <span class="font-semibold text-primary">El lugar donde comienza tu historia.</span>
           </p>
           <div class="flex flex-wrap items-center gap-3">
-            <a routerLink="/login" class="btn btn-primary btn-lg">
+            <a routerLink="/registro" class="btn btn-primary btn-lg" data-testid="register-hero">
+              <i class="fa-solid fa-house-circle-check" aria-hidden="true"></i>
+              Publica tu anuncio gratis
+            </a>
+            <a routerLink="/login" class="btn btn-outline btn-lg">
               <i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>
               Iniciar sesión
             </a>
             <a href="#propiedades" class="btn btn-ghost btn-lg">Ver propiedades</a>
           </div>
-          <p class="text-sm text-base-content/70">Las cuentas las da de alta el administrador de cada inmobiliaria.</p>
+          <p class="text-sm text-base-content/70">
+            Si trabajas en una inmobiliaria, el administrador de tu inmobiliaria te da de alta.
+          </p>
         </div>
 
         <div class="card rounded-box bg-base-100 shadow-xl lg:col-span-2">
@@ -157,87 +169,7 @@
           @if (result()?.items?.length) {
             <ul class="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3" [class.opacity-60]="loading()">
               @for (property of result()?.items; track property.id) {
-                <li class="card relative overflow-hidden rounded-box border border-base-300 bg-base-100">
-                  <!-- Fuera del enlace de la foto: un botón dentro de un enlace no es válido ni accesible. -->
-                  <app-like-button class="absolute right-2 top-2 z-10" [propertyId]="property.id" [title]="property.title" />
-                  <a
-                    [routerLink]="['/publicaciones', property.id]"
-                    class="block"
-                    [attr.aria-label]="'Ver el detalle de ' + property.title"
-                  >
-                  <figure class="relative aspect-4/3 bg-base-200" data-testid="cover">
-                    @if (property.imageIds[0]; as cover) {
-                      <img
-                        [src]="imageUrl(cover)"
-                        [alt]="'Foto de ' + property.title"
-                        class="h-full w-full object-cover"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                      @if (property.imageIds.length > 1) {
-                        <span class="badge badge-neutral badge-sm absolute bottom-2 right-2">
-                          <i class="fa-solid fa-images mr-1" aria-hidden="true"></i>{{ property.imageIds.length }} fotos
-                        </span>
-                      }
-                    } @else {
-                      <div class="flex h-full w-full flex-col items-center justify-center gap-1 text-base-content/40" data-testid="no-cover">
-                        <i class="fa-regular fa-image text-3xl" aria-hidden="true"></i>
-                        <span class="text-xs">Sin fotos</span>
-                      </div>
-                    }
-                  </figure>
-                  </a>
-                  <div class="card-body gap-3">
-                    <div class="flex flex-wrap gap-2">
-                      <span class="badge" [class.badge-accent]="property.operation === 'Sale'" [class.badge-primary]="property.operation === 'Rent'">
-                        En {{ property.operation === 'Sale' ? 'venta' : 'renta' }}
-                      </span>
-                      <span class="badge badge-ghost">{{ typeLabels[property.type] }}</span>
-                    </div>
-
-                    <h3 class="card-title text-lg leading-snug">
-                      <a [routerLink]="['/publicaciones', property.id]" class="hover:text-primary hover:underline">{{ property.title }}</a>
-                    </h3>
-
-                    <p class="text-sm text-base-content/70">
-                      <i class="fa-solid fa-location-dot mr-1" aria-hidden="true"></i>{{ location(property) }}
-                    </p>
-
-                    <p class="font-display text-2xl font-bold text-secondary">
-                      ${{ property.price | number: '1.0-2' }}
-                      <span class="text-sm font-medium text-base-content/70">
-                        {{ property.currency }}@if (property.operation === 'Rent') { /mes }
-                      </span>
-                    </p>
-
-                    @if (property.bedrooms !== null || property.bathrooms !== null || property.constructionArea !== null || property.landArea !== null) {
-                      <ul class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-base-content/80">
-                        @if (property.bedrooms !== null) {
-                          <li><i class="fa-solid fa-bed mr-1" aria-hidden="true"></i>{{ property.bedrooms }} rec.</li>
-                        }
-                        @if (property.bathrooms !== null) {
-                          <li><i class="fa-solid fa-bath mr-1" aria-hidden="true"></i>{{ property.bathrooms }} baños</li>
-                        }
-                        @if (property.constructionArea !== null) {
-                          <li><i class="fa-solid fa-ruler-combined mr-1" aria-hidden="true"></i>{{ property.constructionArea | number: '1.0-2' }} m² const.</li>
-                        }
-                        @if (property.landArea !== null) {
-                          <li><i class="fa-solid fa-vector-square mr-1" aria-hidden="true"></i>{{ property.landArea | number: '1.0-2' }} m² terreno</li>
-                        }
-                      </ul>
-                    }
-
-                    @if (property.description) {
-                      <p class="line-clamp-3 text-sm text-base-content/80">{{ property.description }}</p>
-                    }
-
-                    @if (property.agencyName) {
-                      <p class="mt-auto border-t border-base-200 pt-3 text-xs text-base-content/60">
-                        Publica: {{ property.agencyName }}
-                      </p>
-                    }
-                  </div>
-                </li>
+                <li><app-public-property-card [data]="property" /></li>
               }
             </ul>
 
@@ -284,14 +216,18 @@
 
         <div class="card rounded-box bg-base-100 shadow-xl">
           <div class="card-body gap-4">
-            <h2 class="card-title">Lo que no hace</h2>
+            <h2 class="card-title">Publica tu anuncio</h2>
             <p>
-              Esta página solo muestra el inventario publicado: todavía no permite contactar a la inmobiliaria, ver el
-              detalle de una propiedad ni crear una cuenta por tu cuenta. Para administrar propiedades necesitas que el
-              administrador de tu inmobiliaria te dé de alta.
+              Si vendes o rentas por tu cuenta, crea una cuenta gratuita: publicas tus propiedades con fotos y recibes
+              las solicitudes de informes de los interesados. Si trabajas en una inmobiliaria, el administrador de tu
+              inmobiliaria te da de alta.
             </p>
             <div class="card-actions">
-              <a routerLink="/login" class="btn btn-primary">
+              <a routerLink="/registro" class="btn btn-primary">
+                <i class="fa-solid fa-house-circle-check" aria-hidden="true"></i>
+                Crear cuenta gratis
+              </a>
+              <a routerLink="/login" class="btn btn-outline">
                 <i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>
                 Iniciar sesión
               </a>

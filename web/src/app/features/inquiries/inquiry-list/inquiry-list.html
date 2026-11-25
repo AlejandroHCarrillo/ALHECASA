@@ -1,0 +1,89 @@
+<div class="space-y-4">
+  <h1 class="text-2xl font-bold">Solicitudes de informes</h1>
+
+  <div class="flex flex-col gap-3 sm:flex-row">
+    <label class="input input-bordered flex w-full max-w-md items-center gap-2">
+      <i class="fa-solid fa-magnifying-glass text-base-content/50" aria-hidden="true"></i>
+      <input
+        type="search"
+        class="grow"
+        placeholder="Buscar por prospecto, correo, teléfono o propiedad"
+        aria-label="Buscar solicitudes"
+        maxlength="100"
+        [formControl]="searchControl"
+      />
+    </label>
+
+    <select class="select select-bordered w-full sm:w-52" aria-label="Filtrar por estado" [formControl]="statusControl">
+      <option value="">Todos los estados</option>
+      @for (status of statuses; track status) {
+        <option [value]="status">{{ statusLabels[status] }}</option>
+      }
+    </select>
+  </div>
+
+  @if (listError(); as message) {
+    <app-error-alert [message]="message" (dismissed)="listError.set(null)" />
+  }
+
+  <div class="card bg-base-100 shadow">
+    <div class="overflow-x-auto">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Recibida</th>
+            <th>Prospecto</th>
+            <th>Contacto</th>
+            <th>Propiedad</th>
+            <th>Estado</th>
+            <th class="text-right">Respuestas</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (loading() && !result()) {
+            <tr>
+              <td colspan="6" class="py-8 text-center">
+                <span class="loading loading-spinner loading-md" aria-label="Cargando"></span>
+              </td>
+            </tr>
+          } @else {
+            @for (inquiry of result()?.items; track inquiry.id) {
+              <tr class="hover cursor-pointer" tabindex="0" (click)="open(inquiry)" (keydown.enter)="open(inquiry)">
+                <td class="whitespace-nowrap">{{ inquiry.createdAt | date: 'dd/MM/yyyy HH:mm' }}</td>
+                <td class="font-medium">{{ inquiry.name }}</td>
+                <td>
+                  <div class="whitespace-nowrap">{{ inquiry.phone }}</div>
+                  <div class="text-xs text-base-content/70">{{ inquiry.email }}</div>
+                </td>
+                <td class="max-w-xs truncate">{{ inquiry.propertyTitle }}</td>
+                <td>
+                  <span class="badge" [class]="statusBadges[inquiry.status]">{{ statusLabels[inquiry.status] }}</span>
+                </td>
+                <td class="text-right">{{ inquiry.followUps.length }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="6" class="py-8 text-center text-base-content/60">No se encontraron solicitudes.</td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (result(); as page) {
+      <div class="border-t border-base-200 p-4">
+        <app-paginator
+          [page]="page.page"
+          [pageSize]="pageSize"
+          [totalCount]="page.totalCount"
+          (pageChange)="goToPage($event)"
+        />
+      </div>
+    }
+  </div>
+</div>
+
+@if (selected(); as inquiry) {
+  <app-inquiry-detail-modal [inquiry]="inquiry" (updated)="onUpdated($event)" (closed)="close()" />
+}

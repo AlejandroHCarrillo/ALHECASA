@@ -88,6 +88,9 @@ export interface Property {
   bathrooms: number | null;
   constructionArea: number | null;
   landArea: number | null;
+  /** Ubicación exacta en el mapa; solo la ve el personal. Van juntas: las dos con valor o las dos nulas. */
+  latitude: number | null;
+  longitude: number | null;
   /** Identificadores de las imágenes en orden de galería; la primera es la portada. */
   imageIds: string[];
   createdAt: string;
@@ -120,6 +123,8 @@ export interface UpdatePropertyRequest {
   bathrooms: number | null;
   constructionArea: number | null;
   landArea: number | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface CreatePropertyRequest extends UpdatePropertyRequest {

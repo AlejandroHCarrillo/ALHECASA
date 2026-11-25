@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { PagedResult } from '../../shared/models/paged-result';
+import { PublicProperty } from '../landing/public-properties.service';
 import { Agency } from '../users/user.models';
 import { CreatePropertyRequest, Property, UpdatePropertyRequest } from './property.models';
 
@@ -18,6 +19,12 @@ export class PropertiesService {
       params = params.set('search', search.trim());
     }
     return this.http.get<PagedResult<Property>>(this.propertiesUrl, { params });
+  }
+
+  /** Propiedades publicadas de la inmobiliaria del usuario, con el contenido público (lo que ve un visitante). */
+  getGallery(page: number, pageSize: number): Observable<PagedResult<PublicProperty>> {
+    const params = new HttpParams().set('page', page).set('pageSize', pageSize);
+    return this.http.get<PagedResult<PublicProperty>>(`${this.propertiesUrl}/gallery`, { params });
   }
 
   create(request: CreatePropertyRequest): Observable<Property> {

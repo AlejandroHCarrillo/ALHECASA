@@ -5,10 +5,13 @@
         <app-logo />
       </a>
       @if (!auth.isAuthenticated()) {
-        <a routerLink="/login" class="btn btn-primary btn-sm sm:btn-md">
-          <i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>
-          Iniciar sesión
-        </a>
+        <div class="flex items-center gap-2">
+          <a routerLink="/registro" class="btn btn-outline btn-primary btn-sm sm:btn-md">Publica gratis</a>
+          <a routerLink="/login" class="btn btn-primary btn-sm sm:btn-md">
+            <i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>
+            Iniciar sesión
+          </a>
+        </div>
       }
     </div>
   </header>
@@ -121,57 +124,80 @@
             }
           </section>
 
-          <!-- Resumen -->
-          <aside class="card h-fit rounded-box border border-base-300 bg-base-100 shadow-sm">
-            <div class="card-body gap-4">
-              <p class="font-display text-3xl font-bold text-secondary">
-                ${{ p.price | number: '1.0-2' }}
-                <span class="text-base font-medium text-base-content/70">
-                  {{ p.currency }}@if (p.operation === 'Rent') { /mes }
-                </span>
-              </p>
+          <!-- Columna derecha: resumen y, debajo, el mapa -->
+          <div class="space-y-6">
+            <aside class="card h-fit rounded-box border border-base-300 bg-base-100 shadow-sm">
+              <div class="card-body gap-4">
+                <p class="font-display text-3xl font-bold text-secondary">
+                  ${{ p.price | number: '1.0-2' }}
+                  <span class="text-base font-medium text-base-content/70">
+                    {{ p.currency }}@if (p.operation === 'Rent') { /mes }
+                  </span>
+                </p>
 
-              <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                @if (p.bedrooms !== null) {
+                <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                  @if (p.bedrooms !== null) {
+                    <div>
+                      <dt class="text-base-content/60"><i class="fa-solid fa-bed mr-1" aria-hidden="true"></i>Recámaras</dt>
+                      <dd class="font-semibold">{{ p.bedrooms }}</dd>
+                    </div>
+                  }
+                  @if (p.bathrooms !== null) {
+                    <div>
+                      <dt class="text-base-content/60"><i class="fa-solid fa-bath mr-1" aria-hidden="true"></i>Baños</dt>
+                      <dd class="font-semibold">{{ p.bathrooms }}</dd>
+                    </div>
+                  }
+                  @if (p.constructionArea !== null) {
+                    <div>
+                      <dt class="text-base-content/60"><i class="fa-solid fa-ruler-combined mr-1" aria-hidden="true"></i>Construcción</dt>
+                      <dd class="font-semibold">{{ p.constructionArea | number: '1.0-2' }} m²</dd>
+                    </div>
+                  }
+                  @if (p.landArea !== null) {
+                    <div>
+                      <dt class="text-base-content/60"><i class="fa-solid fa-vector-square mr-1" aria-hidden="true"></i>Terreno</dt>
+                      <dd class="font-semibold">{{ p.landArea | number: '1.0-2' }} m²</dd>
+                    </div>
+                  }
                   <div>
-                    <dt class="text-base-content/60"><i class="fa-solid fa-bed mr-1" aria-hidden="true"></i>Recámaras</dt>
-                    <dd class="font-semibold">{{ p.bedrooms }}</dd>
+                    <dt class="text-base-content/60">Tipo</dt>
+                    <dd class="font-semibold">{{ typeLabels[p.type] }}</dd>
                   </div>
-                }
-                @if (p.bathrooms !== null) {
                   <div>
-                    <dt class="text-base-content/60"><i class="fa-solid fa-bath mr-1" aria-hidden="true"></i>Baños</dt>
-                    <dd class="font-semibold">{{ p.bathrooms }}</dd>
+                    <dt class="text-base-content/60">Operación</dt>
+                    <dd class="font-semibold">{{ operationLabels[p.operation] }}</dd>
                   </div>
-                }
-                @if (p.constructionArea !== null) {
-                  <div>
-                    <dt class="text-base-content/60"><i class="fa-solid fa-ruler-combined mr-1" aria-hidden="true"></i>Construcción</dt>
-                    <dd class="font-semibold">{{ p.constructionArea | number: '1.0-2' }} m²</dd>
-                  </div>
-                }
-                @if (p.landArea !== null) {
-                  <div>
-                    <dt class="text-base-content/60"><i class="fa-solid fa-vector-square mr-1" aria-hidden="true"></i>Terreno</dt>
-                    <dd class="font-semibold">{{ p.landArea | number: '1.0-2' }} m²</dd>
-                  </div>
-                }
-                <div>
-                  <dt class="text-base-content/60">Tipo</dt>
-                  <dd class="font-semibold">{{ typeLabels[p.type] }}</dd>
-                </div>
-                <div>
-                  <dt class="text-base-content/60">Operación</dt>
-                  <dd class="font-semibold">{{ operationLabels[p.operation] }}</dd>
-                </div>
-              </dl>
+                </dl>
 
-              @if (p.agencyName) {
-                <p class="border-t border-base-200 pt-3 text-sm text-base-content/70">Publica: {{ p.agencyName }}</p>
-              }
-              <p class="text-xs text-base-content/60">La dirección exacta se da al contactar a la inmobiliaria.</p>
-            </div>
-          </aside>
+                <button type="button" class="btn btn-primary w-full" data-testid="request-info" (click)="inquiryOpen.set(true)">
+                  <i class="fa-solid fa-envelope" aria-hidden="true"></i>
+                  Pedir informes
+                </button>
+
+                @if (p.agencyName) {
+                  <p class="border-t border-base-200 pt-3 text-sm text-base-content/70">Publica: {{ p.agencyName }}</p>
+                }
+                <p class="text-xs text-base-content/60">La dirección exacta se da al contactar a la inmobiliaria.</p>
+              </div>
+            </aside>
+
+            @if (inquiryOpen()) {
+              <app-inquiry-form-modal [propertyId]="p.id" [propertyTitle]="p.title" (closed)="inquiryOpen.set(false)" />
+            }
+
+            @if (mapPosition(); as position) {
+              <section class="space-y-2" data-testid="location">
+                <h2 class="text-xl font-bold">Ubicación</h2>
+                <app-location-map
+                  [latitude]="position.latitude"
+                  [longitude]="position.longitude"
+                  [label]="'Mapa con la zona aproximada de ' + p.title"
+                />
+                <p class="text-xs text-base-content/60">El círculo marca la zona aproximada de la propiedad.</p>
+              </section>
+            }
+          </div>
         </div>
 
         @if (p.description) {
@@ -180,6 +206,7 @@
             <p class="whitespace-pre-line text-base-content/80">{{ p.description }}</p>
           </section>
         }
+
       </article>
     }
   </main>

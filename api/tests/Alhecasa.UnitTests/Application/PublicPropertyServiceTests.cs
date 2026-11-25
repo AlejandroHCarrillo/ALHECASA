@@ -31,6 +31,29 @@ public sealed class PublicPropertyServiceTests
     }
 
     [Fact]
+    public async Task PublicDto_ExposesOnlyAnApproximateLocation()
+    {
+        var property = new Property(Guid.CreateVersion7(), PropertyTests.ValidData() with { Status = PropertyStatus.Published, Latitude = 19.4326077m, Longitude = -99.1332079m });
+        _properties.Items.Add(property);
+
+        var dto = await CreateService().GetPublishedByIdAsync(property.Id);
+
+        Assert.Equal(19.433m, dto.ApproximateLatitude);
+        Assert.Equal(-99.133m, dto.ApproximateLongitude);
+    }
+
+    [Fact]
+    public async Task PublicDto_WithoutLocation_HasNoCoordinates()
+    {
+        var property = Add(PropertyStatus.Published);
+
+        var dto = await CreateService().GetPublishedByIdAsync(property.Id);
+
+        Assert.Null(dto.ApproximateLatitude);
+        Assert.Null(dto.ApproximateLongitude);
+    }
+
+    [Fact]
     public async Task GetPublished_WithIds_ReturnsOnlyThoseProperties()
     {
         var wanted = Add(PropertyStatus.Published);

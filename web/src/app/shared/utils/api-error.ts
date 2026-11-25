@@ -33,6 +33,9 @@ export function resolveApiError(error: unknown): string {
       return 'El registro no existe o ya no está disponible.';
     case 409:
       return 'El correo ya está registrado.';
+    case 422:
+      // Regla de plan (p. ej. tope de propiedades de la cuenta gratuita): la API manda un mensaje pensado para mostrarse.
+      return (error.error as ProblemDetails | null)?.detail ?? 'La operación excede el límite de tu cuenta.';
     case 429:
       return 'Demasiados intentos. Espera un minuto e inténtalo de nuevo.';
     default:

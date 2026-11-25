@@ -20,6 +20,17 @@ public sealed class PropertiesController(IPropertyService propertyService) : Con
     public async Task<ActionResult<PagedResult<PropertyDto>>> GetPaged([FromQuery] PropertyListQuery query, CancellationToken cancellationToken) =>
         Ok(await propertyService.GetPagedAsync(query, cancellationToken));
 
+    /// <summary>
+    /// Galería de la inmobiliaria: sus propiedades publicadas tal como las ve un visitante (mismos datos públicos, mismo orden).
+    /// Solo para personal de una inmobiliaria.
+    /// </summary>
+    [HttpGet("gallery")]
+    [Authorize(Roles = RoleNames.AgencyStaff)]
+    [ProducesResponseType<PagedResult<PublicPropertyDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<PagedResult<PublicPropertyDto>>> GetGallery([FromQuery] int page = 1, [FromQuery] int pageSize = 12, CancellationToken cancellationToken = default) =>
+        Ok(await propertyService.GetGalleryAsync(page, pageSize, cancellationToken));
+
     [HttpGet("{id:guid}")]
     [ProducesResponseType<PropertyDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]

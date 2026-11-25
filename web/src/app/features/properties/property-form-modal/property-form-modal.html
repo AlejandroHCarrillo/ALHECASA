@@ -166,6 +166,26 @@
       </div>
     </div>
 
+    <div class="form-control">
+      <label class="label" for="coordinates"><span class="label-text">Ubicación en el mapa (latitud, longitud)</span></label>
+      <input
+        id="coordinates"
+        type="text"
+        inputmode="decimal"
+        class="input input-bordered w-full"
+        formControlName="coordinates"
+        placeholder="19.4326, -99.1332"
+        aria-describedby="coordinates-help"
+        [class.input-error]="hasError('coordinates')"
+      />
+      <span id="coordinates-help" class="mt-1 text-sm text-base-content/60">
+        Opcional. En Google Maps, haz clic derecho sobre el punto y copia los números. En el sitio público se muestra solo la zona aproximada.
+      </span>
+      @if (hasError('coordinates')) {
+        <span class="mt-1 text-sm text-error">Escribe latitud y longitud separadas por coma, por ejemplo 19.4326, -99.1332.</span>
+      }
+    </div>
+
     <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
       <div class="form-control">
         <label class="label" for="bedrooms"><span class="label-text">Recámaras</span></label>

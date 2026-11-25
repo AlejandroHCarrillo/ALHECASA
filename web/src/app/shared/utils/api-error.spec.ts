@@ -21,4 +21,12 @@ describe('resolveApiError', () => {
   it('handles unknown errors', () => {
     expect(resolveApiError(new Error('boom'))).toContain('error inesperado');
   });
+  it('shows the plan limit message the API sends on 422', () => {
+    const error = new HttpErrorResponse({ status: 422, error: { detail: 'Tu cuenta gratuita permite hasta 3 propiedades.' } });
+    expect(resolveApiError(error)).toBe('Tu cuenta gratuita permite hasta 3 propiedades.');
+  });
+
+  it('has a generic message for a 422 without detail', () => {
+    expect(resolveApiError(new HttpErrorResponse({ status: 422 }))).toContain('límite');
+  });
 });

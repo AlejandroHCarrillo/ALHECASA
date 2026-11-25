@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, input, output, signal } from '@angular/core';
-import { FormControl, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { Observable, defer, of, switchMap, tap } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { UserRole } from '../../../core/models/user-role';
 import { ErrorAlert } from '../../../shared/components/error-alert/error-alert';
 import { Modal } from '../../../shared/components/modal/modal';
 import { resolveApiError } from '../../../shared/utils/api-error';
+import { formatCoordinates, parseCoordinates } from '../../../shared/utils/coordinates';
 import { imageUrl } from '../../../shared/utils/image-url';
 import { Agency } from '../../users/user.models';
 import { PropertiesService } from '../properties.service';
@@ -23,7 +24,7 @@ import {
   UpdatePropertyRequest,
 } from '../property.models';
 
-type TextField = 'title' | 'price' | 'city' | 'state' | 'agencyId' | 'bedrooms' | 'bathrooms' | 'constructionArea' | 'landArea';
+type TextField = 'title' | 'coordinates' | 'price' | 'city' | 'state' | 'agencyId' | 'bedrooms' | 'bathrooms' | 'constructionArea' | 'landArea';
 
 /** Imagen elegida en el equipo que todavía no se sube. */
 interface StagedImage {
@@ -108,6 +109,7 @@ export class PropertyFormModal implements OnInit, OnDestroy {
     bathrooms: new FormControl<number | null>(null, [Validators.min(0), Validators.max(PROPERTY_LIMITS.maxRooms)]),
     constructionArea: new FormControl<number | null>(null, [Validators.min(0), Validators.max(PROPERTY_LIMITS.maxArea)]),
     landArea: new FormControl<number | null>(null, [Validators.min(0), Validators.max(PROPERTY_LIMITS.maxArea)]),
+    coordinates: ['', [coordinatesValidator]],
     agencyId: [''],
   });
 
@@ -134,6 +136,7 @@ export class PropertyFormModal implements OnInit, OnDestroy {
         bathrooms: property.bathrooms,
         constructionArea: property.constructionArea,
         landArea: property.landArea,
+        coordinates: formatCoordinates(property.latitude, property.longitude),
       });
     }
 
@@ -156,6 +159,7 @@ export class PropertyFormModal implements OnInit, OnDestroy {
     }
 
     const value = this.form.getRawValue();
+    const coordinates = parseCoordinates(value.coordinates);
     const fields: UpdatePropertyRequest = {
       title: value.title.trim(),
       description: blankToNull(value.description),
@@ -173,6 +177,8 @@ export class PropertyFormModal implements OnInit, OnDestroy {
       bathrooms: value.bathrooms,
       constructionArea: value.constructionArea,
       landArea: value.landArea,
+      latitude: coordinates === null || coordinates === 'invalid' ? null : coordinates.latitude,
+      longitude: coordinates === null || coordinates === 'invalid' ? null : coordinates.longitude,
     };
 
     const wasEdit = this.property() !== null;
@@ -300,6 +306,11 @@ function revokePreview(url: string): void {
   if (url && typeof URL.revokeObjectURL === 'function') {
     URL.revokeObjectURL(url);
   }
+}
+
+/** Las coordenadas son opcionales, pero si se escriben deben ser latitud y longitud válidas. */
+function coordinatesValidator(control: AbstractControl<string>): ValidationErrors | null {
+  return parseCoordinates(control.value) === 'invalid' ? { coordinates: true } : null;
 }
 
 function blankToNull(value: string): string | null {

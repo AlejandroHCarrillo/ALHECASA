@@ -43,7 +43,9 @@ public sealed class PropertiesEndpointsTests(ApiFactory factory) : IClassFixture
         Bedrooms = 3,
         Bathrooms = 2,
         ConstructionArea = 250.5m,
-        LandArea = 300m
+        LandArea = 300m,
+        Latitude = 19.4326077m,
+        Longitude = -99.1332079m
     };
 
     private static UpdatePropertyRequest UpdateRequest(string title) => new()
@@ -116,8 +118,25 @@ public sealed class PropertiesEndpointsTests(ApiFactory factory) : IClassFixture
         Assert.Equal(OperationType.Sale, property.Operation);
         Assert.Equal(4_500_000m, property.Price);
         Assert.Equal(250.5m, property.ConstructionArea);
+        Assert.Equal(19.432608m, property.Latitude);
+        Assert.Equal(-99.133208m, property.Longitude);
         Assert.Equal(3, property.Bedrooms);
         Assert.True(property.CreatedAt > DateTimeOffset.UtcNow.AddMinutes(-5));
+    }
+
+    [Theory]
+    [InlineData(91.0, 0.0)]
+    [InlineData(0.0, 181.0)]
+    [InlineData(19.4, null)]
+    [InlineData(null, -99.1)]
+    public async Task Create_WithInvalidCoordinates_Returns400(double? latitude, double? longitude)
+    {
+        var tenant = await CreateTenantAsync();
+        var request = NewRequest() with { Latitude = (decimal?)latitude, Longitude = (decimal?)longitude };
+
+        var response = await factory.CreateClientFor(tenant.Seller).PostJsonAsync(Url, request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]

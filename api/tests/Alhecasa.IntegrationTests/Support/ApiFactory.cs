@@ -60,6 +60,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Database:MigrateOnStartup", "false");
         builder.UseSetting("Database:SeedOnStartup", "false");
 
+        // Las pruebas comparten la misma IP: se sube el tope del formulario público para que no estorbe entre sí.
+        // PublicInquiriesRateLimitTests lo vuelve a bajar para comprobar el límite real.
+        builder.UseSetting("RateLimiting:Inquiries:PermitLimit", "100000");
+        builder.UseSetting("RateLimiting:Register:PermitLimit", "100000");
+
         builder.ConfigureServices(services =>
         {
             // Sustituye el proveedor SQL Server por SQLite. La Fase 0 (F0-03) vuelve esto innecesario
@@ -164,7 +169,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         PropertyStatus status = PropertyStatus.Draft,
         string? street = null,
         PropertyType type = PropertyType.House,
-        OperationType operation = OperationType.Sale)
+        OperationType operation = OperationType.Sale,
+        decimal? latitude = null,
+        decimal? longitude = null)
     {
         var property = new Property(agencyId, new PropertyData(
             title,
@@ -182,7 +189,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             null,
             null,
             null,
-            null));
+            null,
+            latitude,
+            longitude));
 
         await WithDbAsync(async db =>
         {
@@ -192,6 +201,17 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         return property;
     }
 
+    /// <summary>Agrega una solicitud de informes directamente en la base, como si un visitante ya la hubiera mandado.</summary>
+    public async Task<Inquiry> AddInquiryAsync(Guid agencyId, Guid propertyId, string name = "Ana López", string propertyTitle = "Casa de prueba", string message = "¿Sigue disponible?")
+    {
+        var inquiry = new Inquiry(propertyId, agencyId, propertyTitle, name, "5512345678", $"{Guid.NewGuid():N}@prospecto.test", message);
+        await WithDbAsync(async db =>
+        {
+            db.Inquiries.Add(inquiry);
+            await db.SaveChangesAsync();
+        });
+        return inquiry;
+    }
     /// <summary>Modifica un usuario existente directamente en la base (simula un cambio hecho por otro administrador).</summary>
     public Task ModifyUserAsync(Guid userId, Action<User> change) =>
         WithDbAsync(async db =>

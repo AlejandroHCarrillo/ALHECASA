@@ -45,6 +45,24 @@ Abre http://localhost:4221 e inicia sesión con `admin@alhecasa.local` y la cont
 
 El frontend en desarrollo apunta a la API en `http://localhost:5156/api` (`web/src/environments/environment.development.ts`), así que no necesita cambios por usar otro puerto.
 
+### Catálogo de demostración (Goldita y Osito)
+
+Con la clave `Seed:DemoCatalog:Password` configurada, la API crea al arrancar dos inmobiliarias ficticias con su personal y 10 anuncios publicados (5 cada una, 2 fotos por anuncio). Sin la clave no se siembra nada. Es idempotente: no duplica ni resucita lo que se haya borrado.
+
+```powershell
+cd C:\Repos\ALHECASA\api
+dotnet user-secrets set "Seed:DemoCatalog:Password" "<la contraseña de los usuarios demo>" --project src/Alhecasa.Api
+```
+
+| Inmobiliaria | Administrador | Supervisor | Vendedor |
+|---|---|---|---|
+| Goldita Bienes Raíces | `admin@goldita.local` | `supervisor@goldita.local` | `vendedor@goldita.local` |
+| Osito Real State | `admin@osito.local` | `supervisor@osito.local` | `vendedor@osito.local` |
+
+- Los nombres, correos `.local`, direcciones y teléfonos son ficticios; las coordenadas son aproximadas de la zona.
+- Las fotos están en `api/src/Alhecasa.Api/SeedData/catalog-images/01…10` y **fueron generadas con IA**, no son de inmuebles reales. Cámbialas por fotos propias antes de mostrar el sistema a terceros.
+- El código está en `Infrastructure/Persistence/Seeding/DemoCatalog.cs`.
+
 ## 3. Detener los servicios
 
 Pulsa `Ctrl + C` en cada terminal.

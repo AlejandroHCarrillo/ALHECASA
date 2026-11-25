@@ -1,6 +1,7 @@
 using Alhecasa.Application.Abstractions;
 using Alhecasa.Application.Auth;
 using Alhecasa.Application.Common;
+using Alhecasa.Application.Inquiries;
 using Alhecasa.Application.Properties;
 using Alhecasa.Application.Users;
 using Alhecasa.Domain.Entities;
@@ -69,6 +70,19 @@ internal sealed class FakeAgencyRepository : IAgencyRepository
         return agency;
     }
 
+    public Agency AddIndividual(string name = "Particular")
+    {
+        var agency = Agency.CreateIndividual(name, $"{Guid.NewGuid():N}@individual.test");
+        _agencies.Add(agency);
+        return agency;
+    }
+
+    public Task AddAsync(Agency agency, CancellationToken cancellationToken = default)
+    {
+        _agencies.Add(agency);
+        return Task.CompletedTask;
+    }
+
     public Task<Agency?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(_agencies.FirstOrDefault(a => a.Id == id));
 
@@ -92,10 +106,10 @@ internal sealed class FakePropertyRepository : IPropertyRepository
     public Task<Property?> GetPublishedByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(Items.FirstOrDefault(p => p.Id == id && !p.IsDeleted && p.Status == PropertyStatus.Published));
 
-    public Task<PagedResult<Property>> GetPublishedPagedAsync(PublicPropertyQuery query, CancellationToken cancellationToken = default)
+    public Task<PagedResult<Property>> GetPublishedPagedAsync(PublicPropertyQuery query, Guid? agencyId = null, CancellationToken cancellationToken = default)
     {
         var items = Items
-            .Where(p => !p.IsDeleted && p.Status == PropertyStatus.Published && (query.Ids is null || query.Ids.Contains(p.Id)))
+            .Where(p => !p.IsDeleted && p.Status == PropertyStatus.Published && (agencyId is null || p.AgencyId == agencyId) && (query.Ids is null || query.Ids.Contains(p.Id)))
             .ToList();
         return Task.FromResult(new PagedResult<Property>(items, query.Page, query.PageSize, items.Count));
     }
@@ -103,9 +117,34 @@ internal sealed class FakePropertyRepository : IPropertyRepository
     public Task<PropertyImage?> GetImageForServingAsync(Guid imageId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Items.Where(p => !p.IsDeleted).SelectMany(p => p.Images).FirstOrDefault(i => i.Id == imageId));
 
+    public Task<int> CountByAgencyAsync(Guid agencyId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Items.Count(p => p.AgencyId == agencyId && !p.IsDeleted));
+
     public Task AddAsync(Property entity, CancellationToken cancellationToken = default)
     {
         Items.Add(entity);
+        return Task.CompletedTask;
+    }
+}
+
+internal sealed class FakeInquiryRepository : IInquiryRepository
+{
+    public List<Inquiry> Items { get; } = [];
+
+    public Task<Inquiry?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Items.FirstOrDefault(i => i.Id == id && !i.IsDeleted));
+
+    public Task<PagedResult<Inquiry>> GetPagedAsync(InquiryListQuery query, CancellationToken cancellationToken = default)
+    {
+        var items = Items
+            .Where(i => !i.IsDeleted && (query.Status is null || i.Status == query.Status))
+            .ToList();
+        return Task.FromResult(new PagedResult<Inquiry>(items, query.Page, query.PageSize, items.Count));
+    }
+
+    public Task AddAsync(Inquiry inquiry, CancellationToken cancellationToken = default)
+    {
+        Items.Add(inquiry);
         return Task.CompletedTask;
     }
 }

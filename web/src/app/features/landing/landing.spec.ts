@@ -26,6 +26,8 @@ const sample = (overrides: Partial<PublicProperty> = {}): PublicProperty => ({
   bathrooms: 5,
   constructionArea: 520,
   landArea: 600,
+  approximateLatitude: null,
+  approximateLongitude: null,
   imageIds: [],
   agencyName: 'Demo Real Estate',
   ...overrides,
@@ -398,6 +400,17 @@ describe('Landing', () => {
 
     expect(fixture.nativeElement.querySelector('[role="alert"]')).not.toBeNull();
     expect(fixture.nativeElement.textContent).toContain('Propiedades disponibles');
+  });
+
+  it('invites visitors to create a free account, in the header and the introduction', async () => {
+    const fixture = await open();
+    http.expectOne((r) => r.url === URL).flush(page([]));
+    fixture.detectChanges();
+
+    const links = Array.from(fixture.nativeElement.querySelectorAll('a[href="/registro"]') as NodeListOf<HTMLAnchorElement>);
+    expect(links.length).toBeGreaterThanOrEqual(2);
+    expect(fixture.nativeElement.querySelector('[data-testid="register-header"]')?.textContent).toContain('Publica gratis');
+    expect(fixture.nativeElement.querySelector('[data-testid="register-hero"]')?.textContent).toContain('Publica tu anuncio gratis');
   });
 });
 

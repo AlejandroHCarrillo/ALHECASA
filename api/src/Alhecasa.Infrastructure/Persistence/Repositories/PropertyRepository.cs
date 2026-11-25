@@ -15,6 +15,9 @@ internal sealed class PropertyRepository(AlhecasaDbContext db) : IPropertyReposi
             .Include(p => p.Images)
             .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
+    public Task<int> CountByAgencyAsync(Guid agencyId, CancellationToken cancellationToken = default) =>
+        db.Properties.IgnoreQueryFilters().CountAsync(p => p.AgencyId == agencyId && !p.IsDeleted, cancellationToken);
+
     public Task<PropertyImage?> GetImageForServingAsync(Guid imageId, CancellationToken cancellationToken = default) =>
         db.PropertyImages
             .IgnoreQueryFilters()
@@ -65,9 +68,14 @@ internal sealed class PropertyRepository(AlhecasaDbContext db) : IPropertyReposi
     public Task<Property?> GetPublishedByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         VisiblePublicly().FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
-    public async Task<PagedResult<Property>> GetPublishedPagedAsync(PublicPropertyQuery query, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<Property>> GetPublishedPagedAsync(PublicPropertyQuery query, Guid? agencyId = null, CancellationToken cancellationToken = default)
     {
         var source = VisiblePublicly();
+
+        if (agencyId is not null)
+        {
+            source = source.Where(p => p.AgencyId == agencyId);
+        }
 
         if (query.Ids is { Count: > 0 })
         {

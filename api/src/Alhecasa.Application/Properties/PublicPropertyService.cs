@@ -8,7 +8,7 @@ namespace Alhecasa.Application.Properties;
 
 /// <summary>
 /// Lo que ve un visitante sin sesión. No incluye calle ni código postal (la dirección exacta se da al contactar),
-/// ni el estado, ni datos internos de la inmobiliaria.
+/// ni el estado, ni datos internos de la inmobiliaria. La ubicación en el mapa es aproximada (ver <c>ApproximateCoordinate</c>).
 /// </summary>
 public sealed record PublicPropertyDto(
     Guid Id,
@@ -25,6 +25,8 @@ public sealed record PublicPropertyDto(
     int? Bathrooms,
     decimal? ConstructionArea,
     decimal? LandArea,
+    decimal? ApproximateLatitude,
+    decimal? ApproximateLongitude,
     IReadOnlyList<Guid> ImageIds,
     string? AgencyName);
 
@@ -86,7 +88,7 @@ public sealed class PublicPropertyService(IPropertyRepository properties, IImage
             throw new DomainException($"At most {PublicPropertyQuery.MaxIds} ids can be requested at once.");
         }
 
-        var page = await properties.GetPublishedPagedAsync(normalized, cancellationToken);
+        var page = await properties.GetPublishedPagedAsync(normalized, cancellationToken: cancellationToken);
         return page.Map(ToDto);
     }
 
@@ -110,7 +112,13 @@ public sealed class PublicPropertyService(IPropertyRepository properties, IImage
         return content is null ? null : new ImageContent(content, image.ContentType);
     }
 
-    private static PublicPropertyDto ToDto(Property property) => new(
+    /// <summary>Cómo se muestra quien publica. Un particular es anónimo: nunca se publica su nombre real.</summary>
+    public const string IndividualPublisherName = "Particular";
+
+    private static string? PublisherName(Agency? agency) =>
+        agency is { IsIndividual: true } ? IndividualPublisherName : agency?.Name;
+
+    internal static PublicPropertyDto ToDto(Property property) => new(
         property.Id,
         property.Title,
         property.Description,
@@ -125,8 +133,16 @@ public sealed class PublicPropertyService(IPropertyRepository properties, IImage
         property.Bathrooms,
         property.ConstructionArea,
         property.LandArea,
+        ApproximateCoordinate(property.Latitude),
+        ApproximateCoordinate(property.Longitude),
         OrderedImageIds(property),
-        property.Agency?.Name);
+        PublisherName(property.Agency));
+
+    /// <summary>
+    /// Tres decimales son unos 110 m: se ve la zona en el mapa, no la puerta de la casa. La ubicación exacta, como la calle,
+    /// se da al contactar. La portada dibuja un círculo, no un marcador.
+    /// </summary>
+    internal static decimal? ApproximateCoordinate(decimal? value) => value is null ? null : Math.Round(value.Value, 3);
 
     internal static IReadOnlyList<Guid> OrderedImageIds(Property property) =>
         property.Images.OrderBy(i => i.SortOrder).ThenBy(i => i.Id).Select(i => i.Id).ToList();

@@ -9,5 +9,8 @@ public sealed class ConflictException(string message) : Exception(message);
 /// <summary>El usuario autenticado no tiene permiso para la operación.</summary>
 public sealed class ForbiddenException(string message) : Exception(message);
 
+/// <summary>La operación excede el tope del plan de la cuenta. El mensaje se muestra al usuario (en español).</summary>
+public sealed class PlanLimitException(string message) : Exception(message);
+
 /// <summary>Credenciales inválidas o cuenta no disponible.</summary>
 public sealed class AuthenticationFailedException(string message) : Exception(message);

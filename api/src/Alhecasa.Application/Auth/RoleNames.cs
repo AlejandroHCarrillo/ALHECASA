@@ -15,6 +15,9 @@ public static class RoleNames
     /// <summary>Roles con permiso de administrar usuarios.</summary>
     public const string UserManagers = PlatformAdmin + "," + AgencyAdmin;
 
+    /// <summary>Roles que pertenecen a una inmobiliaria (todos menos el administrador de plataforma y el cliente).</summary>
+    public const string AgencyStaff = AgencyAdmin + "," + Supervisor + "," + Seller;
+
     /// <summary>Roles con permiso de administrar el inventario de propiedades.</summary>
     public const string PropertyManagers = PlatformAdmin + "," + AgencyAdmin + "," + Supervisor + "," + Seller;
 }

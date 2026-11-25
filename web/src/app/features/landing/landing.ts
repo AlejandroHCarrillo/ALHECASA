@@ -1,4 +1,3 @@
-import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
@@ -7,13 +6,12 @@ import { Subject, catchError, of, switchMap, tap } from 'rxjs';
 import { LikesService } from '../../core/likes/likes.service';
 import { USER_ROLE_LABELS, UserRole } from '../../core/models/user-role';
 import { ErrorAlert } from '../../shared/components/error-alert/error-alert';
-import { LikeButton } from '../../shared/components/like-button/like-button';
 import { Logo } from '../../shared/components/logo/logo';
 import { Paginator } from '../../shared/components/paginator/paginator';
 import { PagedResult } from '../../shared/models/paged-result';
 import { resolveApiError } from '../../shared/utils/api-error';
-import { imageUrl } from '../../shared/utils/image-url';
 import { OPERATION_LABELS, OperationType, PROPERTY_LIMITS, PROPERTY_TYPE_LABELS, PropertyType } from '../properties/property.models';
+import { PublicPropertyCard } from './public-property-card/public-property-card';
 import { NO_FILTERS, PublicPropertiesService, PublicProperty, PublicPropertyFilters } from './public-properties.service';
 
 const PAGE_SIZE = 12;
@@ -27,7 +25,7 @@ interface Step {
 /** Portada pública: solo para quien no ha iniciado sesión. Muestra las propiedades publicadas y lleva al login. */
 @Component({
   selector: 'app-landing',
-  imports: [ReactiveFormsModule, RouterLink, DecimalPipe, ErrorAlert, LikeButton, Logo, Paginator],
+  imports: [ReactiveFormsModule, RouterLink, ErrorAlert, Logo, Paginator, PublicPropertyCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './landing.html',
 })
@@ -43,7 +41,6 @@ export class Landing {
   protected readonly types = Object.values(PropertyType);
   protected readonly operationLabels = OPERATION_LABELS;
   protected readonly typeLabels = PROPERTY_TYPE_LABELS;
-  protected readonly imageUrl = imageUrl;
 
   protected readonly filterForm = this.fb.group({
     operation: ['' as PublicPropertyFilters['operation']],
@@ -145,10 +142,6 @@ export class Landing {
     this.page = page;
     this.reload$.next();
     this.scrollToResults();
-  }
-
-  protected location(property: PublicProperty): string {
-    return [property.neighborhood, property.city, property.state].filter(Boolean).join(', ');
   }
 
   private scrollToResults(): void {

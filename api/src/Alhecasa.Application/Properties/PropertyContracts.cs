@@ -24,6 +24,8 @@ public sealed record PropertyDto(
     int? Bathrooms,
     decimal? ConstructionArea,
     decimal? LandArea,
+    decimal? Latitude,
+    decimal? Longitude,
     IReadOnlyList<Guid> ImageIds,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt);
@@ -63,6 +65,11 @@ public abstract record PropertyRequest
 
     public decimal? LandArea { get; init; }
 
+    /// <summary>Ubicación en el mapa. Latitud y longitud se envían juntas o ninguna.</summary>
+    public decimal? Latitude { get; init; }
+
+    public decimal? Longitude { get; init; }
+
     internal PropertyData ToData() => new(
         Title.Trim(),
         Clean(Description),
@@ -79,7 +86,9 @@ public abstract record PropertyRequest
         Bedrooms,
         Bathrooms,
         ConstructionArea,
-        LandArea);
+        LandArea,
+        Latitude,
+        Longitude);
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
@@ -134,6 +143,10 @@ public abstract class PropertyRequestValidator<T> : AbstractValidator<T>
         RuleFor(x => x.Bathrooms).InclusiveBetween(0, 50).When(x => x.Bathrooms is not null);
         RuleFor(x => x.ConstructionArea).InclusiveBetween(0, MaxArea).When(x => x.ConstructionArea is not null);
         RuleFor(x => x.LandArea).InclusiveBetween(0, MaxArea).When(x => x.LandArea is not null);
+        RuleFor(x => x.Latitude).InclusiveBetween(-90m, 90m).When(x => x.Latitude is not null);
+        RuleFor(x => x.Longitude).InclusiveBetween(-180m, 180m).When(x => x.Longitude is not null);
+        RuleFor(x => x.Longitude).NotNull().WithMessage("The longitude is required when the latitude is sent.").When(x => x.Latitude is not null);
+        RuleFor(x => x.Latitude).NotNull().WithMessage("The latitude is required when the longitude is sent.").When(x => x.Longitude is not null);
     }
 }
 

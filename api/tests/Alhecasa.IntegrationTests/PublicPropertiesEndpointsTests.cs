@@ -91,6 +91,27 @@ public sealed class PublicPropertiesEndpointsTests(ApiFactory factory) : IClassF
         Assert.DoesNotContain("postalCode", body, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task ExposesTheLocationOnlyApproximately_NeverTheExactCoordinates()
+    {
+        var agency = await factory.AddAgencyAsync();
+        var property = await factory.AddPropertyAsync(agency.Id, "Con mapa", status: PropertyStatus.Published, latitude: 19.4326077m, longitude: -99.1332079m);
+
+        var list = await factory.CreateClient().GetAsync($"{Url}?pageSize=100");
+        var detail = await factory.CreateClient().GetAsync($"{Url}/{property.Id}");
+
+        foreach (var body in new[] { await list.Content.ReadAsStringAsync(), await detail.Content.ReadAsStringAsync() })
+        {
+            Assert.Contains("19.433", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("19.4326", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("99.1332", body, StringComparison.Ordinal);
+        }
+
+        var dto = await detail.ReadAsync<PublicPropertyDto>();
+        Assert.Equal(19.433m, dto.ApproximateLatitude);
+        Assert.Equal(-99.133m, dto.ApproximateLongitude);
+    }
+
     // --- Filtro por identificadores («Mis favoritas») ---------------------------------------
 
     private static string IdsQuery(IEnumerable<Guid> ids) => string.Concat(ids.Select(id => $"&ids={id}"));

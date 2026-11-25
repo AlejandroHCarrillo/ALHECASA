@@ -15,6 +15,7 @@ Referencia de los endpoints de la API de ALHECASA. Para instalar y ejecutar, con
 |---|---|---|---|
 | `GET` | `/health` | Público | Estado del servicio |
 | `POST` | `/api/auth/login` | Público (10 intentos por minuto por IP) | Iniciar sesión |
+| `POST` | `/api/auth/register` | Público (5 por hora por IP) | Crear una cuenta gratuita de particular para publicar anuncios; deja la sesión iniciada |
 | `GET` | `/api/auth/me` | Autenticado | Usuario de la sesión |
 | `GET` | `/api/public/properties` | Público (120 solicitudes por minuto por IP) | Propiedades publicadas, para la portada de visitantes |
 | `GET` | `/api/users` | `PlatformAdmin`, `AgencyAdmin` | Lista paginada con búsqueda y filtros |
@@ -24,6 +25,7 @@ Referencia de los endpoints de la API de ALHECASA. Para instalar y ejecutar, con
 | `DELETE` | `/api/users/{id}` | `PlatformAdmin`, `AgencyAdmin` | Eliminar usuario (borrado lógico) |
 | `GET` | `/api/agencies` | `PlatformAdmin`, `AgencyAdmin` | Inmobiliarias visibles para el usuario |
 | `GET` | `/api/properties` | `PlatformAdmin`, `AgencyAdmin`, `Supervisor`, `Seller` | Inventario paginado con búsqueda |
+| `GET` | `/api/properties/gallery` | `AgencyAdmin`, `Supervisor`, `Seller` | Galería: las propiedades publicadas de la inmobiliaria del usuario, tal como las ve un visitante |
 | `GET` | `/api/properties/{id}` | Los mismos | Detalle de una propiedad |
 | `POST` | `/api/properties` | Los mismos | Crear propiedad |
 | `PUT` | `/api/properties/{id}` | Los mismos | Actualizar propiedad |
@@ -31,6 +33,11 @@ Referencia de los endpoints de la API de ALHECASA. Para instalar y ejecutar, con
 | `POST` | `/api/properties/{id}/images` | Los mismos | Cambiar la galería: subir y quitar imágenes (1 a 10 por propiedad) |
 | `DELETE` | `/api/properties/{id}` | Los mismos | Eliminar propiedad (borrado lógico) |
 | `GET` | `/api/images/{id}` | Público (600 solicitudes por minuto por IP) | Archivo de una imagen de propiedad |
+| `POST` | `/api/public/properties/{propertyId}/inquiries` | Público (10 solicitudes cada 10 minutos por IP) | Pedir informes de una propiedad publicada |
+| `GET` | `/api/inquiries` | `AgencyAdmin`, `Supervisor`, `Seller` | Solicitudes de informes de la inmobiliaria, paginadas, con filtro por estado y búsqueda |
+| `GET` | `/api/inquiries/{id}` | Los mismos | Detalle de una solicitud con su seguimiento |
+| `POST` | `/api/inquiries/{id}/follow-ups` | Los mismos | Registrar una respuesta o una nota interna |
+| `PUT` | `/api/inquiries/{id}/status` | Los mismos | Cambiar el estado de la solicitud |
 
 ## Autenticación
 
@@ -54,7 +61,7 @@ El token se obtiene en el login y vence a los 60 minutos. Sin token, con token i
 | `AgencyAdmin` | Administrador de una inmobiliaria. Siempre pertenece a una. Solo ve y gestiona la suya. |
 | `Supervisor` | Empleado de una inmobiliaria que coordina al equipo de vendedores. Siempre pertenece a una. Por ahora no administra usuarios; sí gestiona propiedades. |
 | `Seller` | Vendedor: empleado de una inmobiliaria. Siempre pertenece a una. Por ahora no administra usuarios; sí gestiona propiedades. |
-| `Client` | Anunciante particular (sin inmobiliaria) o usuario de una inmobiliaria. Sin acceso a los endpoints de administración. |
+| `Client` | Usuario sin acceso a los endpoints de administración. (Los particulares que publican **no** usan este rol: se registran con `POST /api/auth/register` y quedan como `AgencyAdmin` de un espacio `Individual` propio.) |
 
 `Supervisor` y `Seller` los da de alta el `AgencyAdmin` (o el `PlatformAdmin`) con `POST /api/users`. Inician sesión como cualquier otro usuario y tienen acceso a los endpoints de propiedades y a los que no exigen rol (por ejemplo `GET /api/auth/me`); los permisos de leads y de supervisión del equipo se definirán cuando existan esos módulos.
 
@@ -101,11 +108,33 @@ Inicia sesión. Es público y tiene un límite de **10 intentos por minuto por I
 
 El `401` responde siempre igual (`"Invalid email or password."`) si el correo no existe, la contraseña es incorrecta, la cuenta está inactiva o la inmobiliaria está inactiva. Es intencional, para no revelar qué correos están registrados.
 
+### `POST /api/auth/register`
+
+Crea una **cuenta gratuita de particular** y devuelve la sesión iniciada (mismo objeto que el login, con `201`). Es público y tiene un límite de **5 altas por hora por IP** (configurable con `RateLimiting:Register:PermitLimit`); al superarlo responde `429`.
+
+| Campo | Tipo | Reglas |
+|---|---|---|
+| `firstName` | string | Obligatorio, máximo 100 caracteres |
+| `lastName` | string | Obligatorio, máximo 100 caracteres |
+| `email` | string | Obligatorio, correo válido, máximo 256 (se guarda en minúsculas; único entre usuarios) |
+| `password` | string | De 10 a 128 caracteres, con mayúscula, minúscula y número (las mismas reglas que al crear un usuario) |
+
+**El rol y el espacio los fija el servidor:** cualquier campo extra (`role`, `agencyId`, `isActive`…) se ignora, así que por aquí jamás se obtiene `PlatformAdmin`. La cuenta nace como un espacio propio de tipo `Individual` (una «inmobiliaria» con el nombre de la persona) con un único usuario `AgencyAdmin`, todo en una sola transacción. En la respuesta, `user.isIndividual` es `true`.
+
+**Errores:** `400` (datos inválidos), `409` (el correo ya está registrado), `429`. **El `409` revela que un correo ya tiene cuenta**: sin verificación de correo no hay forma de evitarlo; el límite por IP lo frena.
+
+Qué puede hacer una cuenta gratuita:
+
+- Todo lo de propiedades, imágenes, galería y solicitudes de informes, **solo con su propio espacio** (mismo aislamiento que una inmobiliaria).
+- **Tope de propiedades:** `AccountLimits:IndividualMaxProperties` (por defecto 3, borradores incluidos; las eliminadas no cuentan). Al excederlo, `POST /api/properties` responde `422` con un mensaje listo para mostrar. Una inmobiliaria no tiene tope.
+- **No administra usuarios:** `/api/users` responde `403` (tiene un solo usuario). `GET /api/agencies` devuelve su espacio con `isIndividual: true`.
+- En el catálogo público aparece como «Publica: Particular»: **nunca se publica su nombre real** (ni en la lista ni en el detalle).
+
 ### `GET /api/auth/me`
 
 Devuelve el usuario de la sesión, volviendo a consultarlo en la base de datos.
 
-**Respuesta `200`:** el mismo objeto `user` del login.
+**Respuesta `200`:** el mismo objeto `user` del login. `isIndividual` es `true` solo para las cuentas gratuitas de particular (puede venir ausente o `false` en las demás).
 
 **Errores:** `401` (sin token, o el usuario ya no existe o está inactivo).
 
@@ -255,7 +284,8 @@ Lista las inmobiliarias visibles para el usuario: todas para `PlatformAdmin`, so
     "name": "Demo Real Estate",
     "email": "contact@demo.alhecasa.local",
     "phone": "5555550100",
-    "isActive": true
+    "isActive": true,
+    "isIndividual": false
   }
 ]
 ```
@@ -283,12 +313,17 @@ Inventario de propiedades que administra una inmobiliaria. Acceso: `PlatformAdmi
 | `street`, `neighborhood`, `city`, `state`, `postalCode` | texto | `city` y `state` obligatorios. Máx. 200, 100, 100, 100 y 10 |
 | `bedrooms`, `bathrooms` | entero o `null` | 0 a 50 |
 | `constructionArea`, `landArea` | número o `null` | m², 0 a 99,999,999.99 |
+| `latitude`, `longitude` | número o `null` | Ubicación exacta para el mapa. Van **juntas** (las dos o ninguna; una sola responde `400`). Latitud -90 a 90 y longitud -180 a 180; se guardan con 6 decimales. Al editar, omitirlas o enviar `null` quita la ubicación |
 | `imageIds` | lista de guid | Imágenes en orden de galería; la primera es la portada. Se piden con `GET /api/images/{id}` |
 | `createdAt`, `updatedAt` | fecha | |
 
 ### `GET /api/properties`
 
 Parámetros: `search` (opcional; busca en título, ciudad, colonia y calle), `page` (por defecto 1) y `pageSize` (por defecto 10, máximo 100). Orden: más recientes primero. Respuesta `200` con la misma forma paginada que `/api/users` (`items`, `page`, `pageSize`, `totalCount`, `totalPages`).
+
+### `GET /api/properties/gallery`
+
+Las propiedades **publicadas de la inmobiliaria del usuario**, con el mismo contenido que el catálogo público (objeto `PublicPropertyDto`: sin calle ni código postal y con la ubicación aproximada) y el mismo orden (más recientes primero). Sirve para que el personal vea cómo se publican. Parámetros: `page` (por defecto 1) y `pageSize` (por defecto 12, máximo 100). Respuesta `200` paginada como las demás listas. Aplica las mismas reglas de visibilidad que el sitio público: una propiedad que allá no se vería (borrador, pausada, cerrada, eliminada o de una inmobiliaria inactiva) tampoco aparece aquí. **Errores:** `401`; `403` para el administrador de plataforma (no pertenece a una inmobiliaria) y para clientes.
 
 ### `GET /api/properties/{id}`
 
@@ -358,13 +393,70 @@ Orden: más recientes primero. La respuesta tiene la misma forma paginada que la
 
 **Ejemplo:** `GET /api/public/properties?operation=Rent&type=Apartment&location=roma`
 
-Cada elemento de `items` trae solo datos públicos: `id`, `title`, `description`, `type`, `operation`, `price`, `currency`, `neighborhood`, `city`, `state`, `bedrooms`, `bathrooms`, `constructionArea`, `landArea`, `imageIds` (la primera es la portada) y `agencyName`. **No incluye** la calle ni el código postal (la dirección exacta se da al contactar), ni el estado, ni identificadores de la inmobiliaria.
+Cada elemento de `items` trae solo datos públicos: `id`, `title`, `description`, `type`, `operation`, `price`, `currency`, `neighborhood`, `city`, `state`, `bedrooms`, `bathrooms`, `constructionArea`, `landArea`, `approximateLatitude`, `approximateLongitude`, `imageIds` (la primera es la portada) y `agencyName`. **No incluye** la calle ni el código postal (la dirección exacta se da al contactar), ni el estado, ni identificadores de la inmobiliaria. La ubicación es **aproximada a propósito**: las coordenadas públicas se redondean a 3 decimales (unos 110 m) y son `null` si la propiedad no tiene ubicación; las exactas (`latitude`, `longitude`) solo las devuelve la API autenticada del personal.
 
 Límite: 120 solicitudes por minuto por IP (`429` al excederlo).
 
 ### `GET /api/public/properties/{id}`
 
 Detalle de una propiedad para la página de la publicación. **No requiere token.** Devuelve el mismo objeto público que cada elemento de la lista (con `imageIds` completo, en orden de galería) y aplica las **mismas reglas de visibilidad**: solo `Published`, no eliminada y de una inmobiliaria activa. Un borrador, una propiedad pausada, cerrada o eliminada, o un id desconocido responden `404` (no se distingue el motivo). Mismo límite de solicitudes que el listado.
+
+---
+
+## Solicitudes de informes
+
+Un visitante pide informes de una propiedad publicada y el personal de la inmobiliaria dueña de esa propiedad la atiende. **Una solicitud solo la ve la inmobiliaria de la propiedad**; el administrador de plataforma no tiene acceso (no pertenece a ninguna inmobiliaria).
+
+### `POST /api/public/properties/{propertyId}/inquiries`
+
+**No requiere token.** Aplica las mismas reglas de visibilidad que el detalle público: si la propiedad no está publicada, está eliminada, o su inmobiliaria está inactiva o eliminada (o el id no existe), responde `404`.
+
+```json
+{ "name": "Ana López", "phone": "55 1234 5678", "email": "ana@demo.com", "message": "¿Sigue disponible?" }
+```
+
+| Campo | Regla |
+|---|---|
+| `name` | Obligatorio, máximo 100 caracteres |
+| `phone` | Obligatorio, máximo 30; solo dígitos, espacios, `+ ( ) - .` y de 7 a 15 dígitos |
+| `email` | Obligatorio, correo válido, máximo 256 (se guarda en minúsculas) |
+| `message` | Obligatorio, máximo 2000 |
+
+Responde `201` **sin cuerpo**: quien no ha iniciado sesión no recibe ningún dato de lo que se guardó. Datos inválidos responden `400`. Límite: **10 solicitudes cada 10 minutos por IP** (`429` al excederlo); es configurable con `RateLimiting:Inquiries:PermitLimit`. La solicitud guarda el id de la propiedad, la inmobiliaria dueña y el título de la propiedad en ese momento (para que la bandeja siga siendo legible si luego se renombra o elimina).
+
+### Objeto `Inquiry`
+
+| Campo | Descripción |
+|---|---|
+| `id`, `propertyId`, `propertyTitle` | Identificadores y título de la propiedad al momento de la solicitud |
+| `name`, `phone`, `email`, `message` | Datos del prospecto y su pregunta |
+| `status` | `New` (nueva), `InProgress` (en seguimiento) o `Closed` (cerrada) |
+| `followUps` | Historial, del más antiguo al más reciente: `id`, `kind` (`Reply` o `Note`), `text`, `authorName` (el nombre al momento de escribirlo), `createdAt` |
+| `createdAt`, `updatedAt` | Auditoría |
+
+### `GET /api/inquiries`
+
+Solo `AgencyAdmin`, `Supervisor` y `Seller`, y solo ven las de su inmobiliaria. Parámetros opcionales: `status` (`New` \| `InProgress` \| `Closed`), `search` (nombre, correo, teléfono o título de la propiedad), `page` (por defecto 1) y `pageSize` (por defecto 10, máximo 100). Orden: más recientes primero. Misma forma paginada que las demás listas.
+
+### `GET /api/inquiries/{id}`
+
+Devuelve un `Inquiry`. Una solicitud de otra inmobiliaria responde `404`.
+
+### `POST /api/inquiries/{id}/follow-ups`
+
+```json
+{ "kind": "Reply", "text": "Le llamé y quedamos de visitarla el sábado." }
+```
+
+`kind` es `Reply` (lo que se le respondió al prospecto; por defecto) o `Note` (nota interna). `text` es obligatorio, máximo 2000. Devuelve el `Inquiry` actualizado. Una respuesta pasa la solicitud a `InProgress` (también reabre una `Closed`); una nota no cambia el estado. Máximo 200 registros por solicitud (`400` después). **El sistema no envía correos ni mensajes**: solo deja constancia; el personal contacta al prospecto por teléfono o correo.
+
+### `PUT /api/inquiries/{id}/status`
+
+```json
+{ "status": "Closed" }
+```
+
+Devuelve el `Inquiry` actualizado. Un estado inválido responde `400`.
 
 ---
 
@@ -387,7 +479,8 @@ Los errores siguen el formato `ProblemDetails` (RFC 9457).
 | `403` | El rol no permite la operación, o una restricción de negocio (por ejemplo, eliminar la propia cuenta) |
 | `404` | El recurso no existe o no es visible para el usuario |
 | `409` | Conflicto, por ejemplo correo duplicado |
-| `429` | Límite de intentos del login superado |
+| `422` | Se alcanzó un tope del plan de la cuenta (propiedades de una cuenta gratuita); `detail` trae un mensaje para mostrar |
+| `429` | Límite de solicitudes superado (login, alta de cuenta, solicitudes de informes o catálogo público) |
 | `500` | Error interno. El detalle no se expone; solo se registra en el servidor. |
 
 **Error general**

@@ -8,10 +8,12 @@ import { catchError, map, of, switchMap, tap } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { ErrorAlert } from '../../shared/components/error-alert/error-alert';
 import { LikeButton } from '../../shared/components/like-button/like-button';
+import { LocationMap } from '../../shared/components/location-map/location-map';
 import { Logo } from '../../shared/components/logo/logo';
 import { resolveApiError } from '../../shared/utils/api-error';
 import { imageUrl } from '../../shared/utils/image-url';
 import { PublicProperty, PublicPropertiesService } from '../landing/public-properties.service';
+import { InquiryFormModal } from './inquiry-form-modal/inquiry-form-modal';
 import { OPERATION_LABELS, PROPERTY_TYPE_LABELS } from '../properties/property.models';
 
 /**
@@ -20,7 +22,7 @@ import { OPERATION_LABELS, PROPERTY_TYPE_LABELS } from '../properties/property.m
  */
 @Component({
   selector: 'app-public-property-detail',
-  imports: [RouterLink, DecimalPipe, ErrorAlert, LikeButton, Logo],
+  imports: [RouterLink, DecimalPipe, ErrorAlert, InquiryFormModal, LikeButton, LocationMap, Logo],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './public-property-detail.html',
 })
@@ -40,6 +42,9 @@ export class PublicPropertyDetail {
   protected readonly notFound = signal(false);
   protected readonly error = signal<string | null>(null);
 
+  /** El modal para pedir informes está abierto. */
+  protected readonly inquiryOpen = signal(false);
+
   /** Posición de la foto grande dentro de la galería. */
   protected readonly selected = signal(0);
   protected readonly imageIds = computed(() => this.property()?.imageIds ?? []);
@@ -48,6 +53,14 @@ export class PublicPropertyDetail {
   protected readonly location = computed(() => {
     const p = this.property();
     return p ? [p.neighborhood, p.city, p.state].filter(Boolean).join(', ') : '';
+  });
+
+  /** Zona aproximada para el mapa; null si la propiedad no tiene ubicación. */
+  protected readonly mapPosition = computed(() => {
+    const p = this.property();
+    return p && p.approximateLatitude !== null && p.approximateLongitude !== null
+      ? { latitude: p.approximateLatitude, longitude: p.approximateLongitude }
+      : null;
   });
 
   constructor() {

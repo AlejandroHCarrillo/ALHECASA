@@ -21,7 +21,9 @@ public sealed record PropertyData(
     int? Bedrooms,
     int? Bathrooms,
     decimal? ConstructionArea,
-    decimal? LandArea);
+    decimal? LandArea,
+    decimal? Latitude = null,
+    decimal? Longitude = null);
 
 /// <summary>
 /// Propiedad del inventario de una inmobiliaria. Pertenece siempre a una (es el tenant) y nunca cambia de inmobiliaria.
@@ -85,6 +87,12 @@ public class Property : BaseEntity
     /// <summary>Superficie del terreno en metros cuadrados.</summary>
     public decimal? LandArea { get; private set; }
 
+    /// <summary>Latitud exacta en grados (-90 a 90). Va siempre junto con <see cref="Longitude"/>. No es un dato público: la portada solo recibe una aproximación.</summary>
+    public decimal? Latitude { get; private set; }
+
+    /// <summary>Longitud exacta en grados (-180 a 180).</summary>
+    public decimal? Longitude { get; private set; }
+
     /// <summary>Máximo de imágenes por propiedad.</summary>
     public const int MaxImages = 10;
 
@@ -94,6 +102,14 @@ public class Property : BaseEntity
     public IReadOnlyCollection<PropertyImage> Images => _images;
 
     public void Update(PropertyData data) => Apply(data);
+
+    /// <summary>Fija o quita la ubicación. Latitud y longitud van juntas: las dos con valor o las dos nulas.</summary>
+    public void SetCoordinates(decimal? latitude, decimal? longitude)
+    {
+        ValidateCoordinates(latitude, longitude);
+        Latitude = Round(latitude);
+        Longitude = Round(longitude);
+    }
 
     /// <summary>Agrega una imagen al final de la galería. No puede superar <see cref="MaxImages"/>.</summary>
     public PropertyImage AddImage(string storageKey, string contentType, long sizeBytes)
@@ -143,6 +159,8 @@ public class Property : BaseEntity
             throw new DomainException("Rooms and areas cannot be negative.");
         }
 
+        ValidateCoordinates(data.Latitude, data.Longitude);
+
         Title = data.Title;
         Description = data.Description;
         Type = data.Type;
@@ -159,5 +177,28 @@ public class Property : BaseEntity
         Bathrooms = data.Bathrooms;
         ConstructionArea = data.ConstructionArea;
         LandArea = data.LandArea;
+        Latitude = Round(data.Latitude);
+        Longitude = Round(data.Longitude);
     }
+
+    private static void ValidateCoordinates(decimal? latitude, decimal? longitude)
+    {
+        if ((latitude is null) != (longitude is null))
+        {
+            throw new DomainException("Latitude and longitude must be set together.");
+        }
+
+        if (latitude is < -90m or > 90m)
+        {
+            throw new DomainException("The latitude must be between -90 and 90.");
+        }
+
+        if (longitude is < -180m or > 180m)
+        {
+            throw new DomainException("The longitude must be between -180 and 180.");
+        }
+    }
+
+    // Seis decimales (unos 10 cm) es la precisión de la columna; así lo guardado y lo devuelto coinciden.
+    private static decimal? Round(decimal? value) => value is null ? null : Math.Round(value.Value, 6);
 }
