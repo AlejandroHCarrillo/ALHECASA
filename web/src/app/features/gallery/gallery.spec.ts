@@ -27,10 +27,12 @@ const sample = (id: string, overrides: Partial<PublicProperty> = {}): PublicProp
   approximateLongitude: null,
   imageIds: [],
   agencyName: 'Demo Real Estate',
+  agencyId: 'agency-1',
   parkingSpaces: null,
   petsAllowed: false,
   furnished: false,
   amenities: [],
+  isFeatured: false,
   ...overrides,
 });
 

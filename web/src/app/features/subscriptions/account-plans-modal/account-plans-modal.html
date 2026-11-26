@@ -1,0 +1,178 @@
+<app-modal [title]="'Planes de ' + account().agencyName" boxClass="max-w-4xl" (closed)="closed.emit()">
+  <div class="space-y-5">
+    @if (error(); as message) {
+      <app-error-alert [message]="message" (dismissed)="error.set(null)" />
+    }
+
+    @if (loading()) {
+      <div class="py-6 text-center"><span class="loading loading-spinner loading-md" aria-label="Cargando"></span></div>
+    } @else {
+      <section aria-labelledby="active-title">
+        <h4 id="active-title" class="mb-2 font-semibold">Vigente</h4>
+        @for (subscription of active(); track subscription.id) {
+          <p class="text-sm" data-testid="active-subscription">
+            <span class="badge badge-outline mr-1">{{ kindLabels[subscription.kind] }}</span>
+            <strong>{{ subscription.planName }}</strong>
+            ({{ describeLimit(subscription.kind, subscription.limit) }}), vence el {{ subscription.endsAt | date: 'dd/MM/yyyy' }}.
+          </p>
+        } @empty {
+          <p class="text-sm text-base-content/70" data-testid="no-active">
+            @if (account().isIndividual) {
+              Sin contratación de pago: tiene el plan gratuito de los particulares.
+            } @else {
+              Sin contratación vigente: la inmobiliaria no tiene tope de publicaciones ni destacados.
+            }
+          </p>
+        }
+      </section>
+
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="space-y-3 rounded-box border border-base-300 p-4">
+        <h4 class="font-semibold">Registrar una contratación</h4>
+
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div class="form-control sm:col-span-3">
+            <label class="label" for="assign-plan"><span class="label-text">Plan <span class="text-error">*</span></span></label>
+            <select id="assign-plan" class="select select-bordered w-full" formControlName="planId" [class.select-error]="hasError('planId')">
+              <option value="">Selecciona un plan</option>
+              @for (group of offerableByKind(); track group.kind) {
+                <optgroup [label]="kindLabels[group.kind]">
+                  @for (plan of group.plans; track plan.id) {
+                    <option [value]="plan.id">
+                      {{ plan.name }} · {{ plan.currency }} {{ plan.price | number: '1.2-2' }} ({{ periodLabels[plan.period!] }})
+                    </option>
+                  }
+                </optgroup>
+              }
+            </select>
+            @if (hasError('planId')) {
+              <span class="mt-1 text-sm text-error">Selecciona un plan.</span>
+            }
+            @if (offerable().length === 0) {
+              <span class="mt-1 text-xs text-base-content/60">No hay planes activos para este tipo de cuenta.</span>
+            }
+          </div>
+
+          <div class="form-control">
+            <label class="label" for="assign-amount"><span class="label-text">Monto pagado</span></label>
+            <input
+              id="assign-amount"
+              type="number"
+              class="input input-bordered w-full"
+              formControlName="amountPaid"
+              min="0"
+              step="0.01"
+              [class.input-error]="hasError('amountPaid')"
+            />
+            @if (selectedPlan(); as plan) {
+              <span class="mt-1 text-xs text-base-content/60">Moneda: {{ plan.currency }}. Por omisión, el precio del plan.</span>
+            }
+          </div>
+
+          <div class="form-control sm:col-span-2">
+            <label class="label" for="assign-reference"><span class="label-text">Referencia del pago</span></label>
+            <input
+              id="assign-reference"
+              type="text"
+              class="input input-bordered w-full"
+              formControlName="paymentReference"
+              maxlength="200"
+              placeholder="Folio, transferencia, nota…"
+              [class.input-error]="hasError('paymentReference')"
+            />
+          </div>
+        </div>
+
+        @if (selectedPlan(); as plan) {
+          <p class="text-sm text-base-content/70" data-testid="assign-summary">
+            Empieza hoy y dura {{ spans[plan.period!] }}.
+            @if (replaced(); as current) {
+              <span class="text-warning" data-testid="replace-warning">
+                Reemplaza a «{{ current.planName }}», que sigue vigente.
+                @if (plan.kind === 'Featured') {
+                  Los anuncios destacados ahora dejarán de estarlo y la cuenta deberá elegirlos de nuevo.
+                }
+              </span>
+            }
+          </p>
+        }
+
+        <div class="flex justify-end">
+          <button type="submit" class="btn btn-primary btn-sm" data-testid="assign-submit" [disabled]="submitting()">
+            @if (submitting()) {
+              <span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+            }
+            Registrar
+          </button>
+        </div>
+      </form>
+
+      <section aria-labelledby="history-title">
+        <h4 id="history-title" class="mb-2 font-semibold">Historial</h4>
+
+        @if (cancelTarget(); as target) {
+          <div class="alert alert-warning mb-3" role="alert" data-testid="cancel-confirm">
+            <span>¿Cancelar «{{ target.planName }}» ahora? La cuenta pierde lo que incluye de inmediato.</span>
+            <div class="flex gap-2">
+              <button type="button" class="btn btn-sm" [disabled]="cancelling()" (click)="dismissCancel()">No</button>
+              <button type="button" class="btn btn-sm btn-error" data-testid="cancel-yes" [disabled]="cancelling()" (click)="confirmCancel()">
+                Sí, cancelar
+              </button>
+            </div>
+          </div>
+        }
+
+        <div class="overflow-x-auto">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>Plan</th>
+                <th>Vigencia</th>
+                <th class="text-right">Pagado</th>
+                <th>Referencia</th>
+                <th>Estado</th>
+                <th class="text-right"><span class="sr-only">Acciones</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (subscription of history(); track subscription.id) {
+                <tr data-testid="history-row">
+                  <td>
+                    <div class="font-medium">{{ subscription.planName }}</div>
+                    <div class="text-xs text-base-content/60">{{ kindLabels[subscription.kind] }}, {{ describeLimit(subscription.kind, subscription.limit) }}</div>
+                  </td>
+                  <td class="whitespace-nowrap text-sm">{{ subscription.startsAt | date: 'dd/MM/yyyy' }} – {{ subscription.endsAt | date: 'dd/MM/yyyy' }}</td>
+                  <td class="whitespace-nowrap text-right">{{ subscription.currency }} {{ subscription.amountPaid | number: '1.2-2' }}</td>
+                  <td class="max-w-40 truncate">{{ subscription.paymentReference ?? '—' }}</td>
+                  <td>
+                    <span
+                      class="badge"
+                      [class.badge-success]="subscription.isActive"
+                      [class.badge-warning]="!subscription.isActive && subscription.cancelledAt"
+                      [class.badge-ghost]="!subscription.isActive && !subscription.cancelledAt"
+                      >{{ statusOf(subscription) }}</span
+                    >
+                  </td>
+                  <td class="text-right">
+                    @if (subscription.isActive) {
+                      <button type="button" class="btn btn-ghost btn-xs text-error" data-testid="cancel-subscription" (click)="askCancel(subscription)">
+                        Cancelar
+                      </button>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="py-4 text-center text-base-content/60">Todavía no hay contrataciones.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+
+    <div class="modal-action">
+      <button type="button" class="btn" (click)="closed.emit()">Cerrar</button>
+    </div>
+  </div>
+</app-modal>

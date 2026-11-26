@@ -32,6 +32,8 @@ public static class DatabaseInitializer
         var hasher = sp.GetRequiredService<IPasswordHasher>();
         var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseSeeder");
 
+        await EnsurePlansAsync(db, logger, cancellationToken);
+
         if (options.PlatformAdmin is { IsConfigured: true } admin)
         {
             await EnsureUserAsync(db, hasher, logger, admin, UserRole.PlatformAdmin, null, cancellationToken);
@@ -79,6 +81,58 @@ public static class DatabaseInitializer
         }
     }
 
+    /// <summary>
+    /// Siembra el catálogo de planes la primera vez (cuando no existe ninguno): el plan gratuito de los particulares y unos planes de
+    /// ejemplo con precios ilustrativos, que el administrador de plataforma debe revisar o cambiar. Después no vuelve a tocar el catálogo,
+    /// así que lo que el administrador edite o elimine se respeta.
+    /// </summary>
+    private static async Task EnsurePlansAsync(AlhecasaDbContext db, ILogger logger, CancellationToken cancellationToken)
+    {
+        if (await db.Plans.AnyAsync(cancellationToken))
+        {
+            return;
+        }
+
+        const int unlimited = 0;
+        var plans = new List<PlanData>
+        {
+            new("Gratuito", "Para particulares: hasta 3 anuncios sin costo.", PlanKind.Listings, PlanAudience.Individual, 3, null, 0m, CurrencyCode.MXN)
+        };
+
+        (int Limit, decimal Price)[] listings = [(100, 799m), (200, 1_399m), (300, 1_899m), (500, 2_799m), (unlimited, 4_999m)];
+        plans.AddRange(listings.Select(l => new PlanData(
+            l.Limit == unlimited ? "Premium ilimitado" : $"Inmobiliaria {l.Limit}",
+            l.Limit == unlimited ? "Publicaciones ilimitadas, por mes." : $"Hasta {l.Limit} publicaciones, por mes.",
+            PlanKind.Listings,
+            PlanAudience.Company,
+            l.Limit == unlimited ? null : l.Limit,
+            BillingPeriod.Month,
+            l.Price,
+            CurrencyCode.MXN)));
+
+        (int Limit, BillingPeriod Period, decimal Price)[] featured =
+        [
+            (1, BillingPeriod.Week, 79m), (3, BillingPeriod.Week, 199m), (5, BillingPeriod.Month, 499m),
+            (10, BillingPeriod.Month, 899m), (50, BillingPeriod.Month, 3_499m), (unlimited, BillingPeriod.Year, 29_999m)
+        ];
+        var periodLabel = new Dictionary<BillingPeriod, string>
+        {
+            [BillingPeriod.Day] = "día", [BillingPeriod.Week] = "semana", [BillingPeriod.Month] = "mes", [BillingPeriod.Year] = "año"
+        };
+        plans.AddRange(featured.Select(f => new PlanData(
+            f.Limit == unlimited ? $"Destacados ilimitados ({periodLabel[f.Period]})" : $"{f.Limit} {(f.Limit == 1 ? "destacado" : "destacados")} ({periodLabel[f.Period]})",
+            f.Limit == unlimited ? $"Todos los anuncios que quieras destacados, por {periodLabel[f.Period]}." : $"{f.Limit} anuncios destacados a la vez, por {periodLabel[f.Period]}.",
+            PlanKind.Featured,
+            PlanAudience.Any,
+            f.Limit == unlimited ? null : f.Limit,
+            f.Period,
+            f.Price,
+            CurrencyCode.MXN)));
+
+        db.Plans.AddRange(plans.Select(p => new Plan(p)));
+        await db.SaveChangesAsync(cancellationToken);
+        logger.LogInformation("Seeded the plan catalog with {Count} plans (free plan and examples).", plans.Count);
+    }
     /// <summary>
     /// Pone la ubicación a las propiedades de ejemplo que se sembraron antes de que existieran las coordenadas.
     /// Solo toca las que no tienen ninguna; en desarrollo, una propiedad de ejemplo a la que se le quite la ubicación la recupera al reiniciar.

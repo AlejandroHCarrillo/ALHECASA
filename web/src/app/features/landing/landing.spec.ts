@@ -30,10 +30,12 @@ const sample = (overrides: Partial<PublicProperty> = {}): PublicProperty => ({
   approximateLongitude: null,
   imageIds: [],
   agencyName: 'Demo Real Estate',
+  agencyId: 'agency-1',
   parkingSpaces: null,
   petsAllowed: false,
   furnished: false,
   amenities: [],
+  isFeatured: false,
   ...overrides,
 });
 
@@ -79,7 +81,7 @@ describe('Landing', () => {
     expect(text).toContain('En renta');
     expect(text).toContain('/mes');
     expect(text).toContain('Lomas, Ciudad de México, CDMX');
-    expect(text).toContain('Publica: Demo Real Estate');
+    expect(text.replace(/\s+/g, ' ')).toContain('Publica: Demo Real Estate');
   });
 
   it('shows the first image as the cover, how many photos there are, and a placeholder without photos', async () => {

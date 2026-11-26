@@ -107,6 +107,24 @@ public class Property : BaseEntity
     /// <summary>Amenidades como máscara de bits (ver <see cref="Amenity"/>).</summary>
     public Amenity Amenities { get; private set; }
 
+    /// <summary>Hasta cuándo está destacada (paquete de destacados). Nulo, o una fecha pasada, = no destacada.</summary>
+    public DateTimeOffset? FeaturedUntil { get; private set; }
+
+    public bool IsFeaturedAt(DateTimeOffset now) => FeaturedUntil > now;
+
+    /// <summary>Destaca la propiedad hasta la fecha indicada (el fin del paquete que se usa).</summary>
+    public void Feature(DateTimeOffset until, DateTimeOffset now)
+    {
+        if (until <= now)
+        {
+            throw new DomainException("A property can only be featured until a future date.");
+        }
+
+        FeaturedUntil = until;
+    }
+
+    public void Unfeature() => FeaturedUntil = null;
+
     /// <summary>Máximo de imágenes por propiedad.</summary>
     public const int MaxImages = 10;
 

@@ -31,7 +31,21 @@ Referencia de los endpoints de la API de ALHECASA. Para instalar y ejecutar, con
 | `PUT` | `/api/properties/{id}` | Los mismos | Actualizar propiedad |
 | `GET` | `/api/public/properties/{id}` | Público (120 solicitudes por minuto por IP) | Detalle de una propiedad publicada, con todas sus imágenes |
 | `POST` | `/api/properties/{id}/images` | Los mismos | Cambiar la galería: subir y quitar imágenes (1 a 10 por propiedad) |
+| `PUT` | `/api/properties/{id}/featured` | Los mismos | Destacar una propiedad publicada (usa un lugar del paquete de destacados) o quitarle el destacado |
 | `DELETE` | `/api/properties/{id}` | Los mismos | Eliminar propiedad (borrado lógico) |
+| `GET` | `/api/plans` | `PlatformAdmin` | Catálogo de planes y paquetes |
+| `GET` | `/api/plans/{id}` | `PlatformAdmin` | Detalle de un plan |
+| `POST` | `/api/plans` | `PlatformAdmin` | Crear un plan |
+| `PUT` | `/api/plans/{id}` | `PlatformAdmin` | Editar un plan |
+| `DELETE` | `/api/plans/{id}` | `PlatformAdmin` | Eliminar un plan (borrado lógico) |
+| `GET` | `/api/dashboard` | `AgencyAdmin`, `Supervisor`, `Seller` | Resumen de la inmobiliaria: propiedades por estado y solicitudes por etapa |
+| `GET` | `/api/billing/me` | `AgencyAdmin`, `Supervisor`, `Seller` | Plan de la cuenta y lo que lleva usado |
+| `GET` | `/api/billing/plans` | `AgencyAdmin` | Planes que la cuenta puede comprar |
+| `POST` | `/api/billing/checkout` | `AgencyAdmin` | Comprar un plan con tarjeta (pasarela simulada) |
+| `GET` | `/api/billing/accounts` | `PlatformAdmin` | Lo contratado y lo usado por todas las cuentas |
+| `GET` | `/api/billing/accounts/{agencyId}/subscriptions` | `PlatformAdmin` | Historial de contrataciones de una cuenta |
+| `POST` | `/api/billing/accounts/{agencyId}/subscriptions` | `PlatformAdmin` | Registrar que una cuenta contrató un plan |
+| `POST` | `/api/billing/accounts/{agencyId}/subscriptions/{id}/cancel` | `PlatformAdmin` | Cancelar una contratación vigente |
 | `GET` | `/api/images/{id}` | Público (600 solicitudes por minuto por IP) | Archivo de una imagen de propiedad |
 | `POST` | `/api/public/properties/{propertyId}/inquiries` | Público (10 solicitudes cada 10 minutos por IP) | Pedir informes de una propiedad publicada |
 | `GET` | `/api/inquiries` | `AgencyAdmin`, `Supervisor`, `Seller` | Solicitudes de informes de la inmobiliaria, paginadas, con filtro por estado y búsqueda |
@@ -318,6 +332,7 @@ Inventario de propiedades que administra una inmobiliaria. Acceso: `PlatformAdmi
 | `amenities` | lista de texto | Amenidades: `Pool`, `Gym`, `Security24h`, `Garden`, `Terrace`, `Elevator`, `Storage`, `ServiceRoom`, `AirConditioning`, `CommonAreas`, `Fireplace`, `Playground`. Sin repetidos; un nombre desconocido responde `400`. Al guardarse es un campo de bits, pero la API siempre habla en nombres (es la única enumeración que viaja como lista) |
 | `latitude`, `longitude` | número o `null` | Ubicación exacta para el mapa. Van **juntas** (las dos o ninguna; una sola responde `400`). Latitud -90 a 90 y longitud -180 a 180; se guardan con 6 decimales. Al editar, omitirlas o enviar `null` quita la ubicación |
 | `imageIds` | lista de guid | Imágenes en orden de galería; la primera es la portada. Se piden con `GET /api/images/{id}` |
+| `isFeatured`, `featuredUntil` | booleano, fecha o `null` | Si está destacada **ahora** y hasta cuándo (el fin del paquete que la destacó). Solo lectura: se cambia con `PUT /api/properties/{id}/featured`. Un destacado vencido se informa como `false` / `null` |
 | `createdAt`, `updatedAt` | fecha | |
 
 ### `GET /api/properties`
@@ -343,7 +358,15 @@ Cuerpo: todos los campos editables del objeto `Property` más `agencyId`. **No s
 
 ### `PUT /api/properties/{id}`
 
-Mismos campos que el alta, sin `agencyId`: una propiedad no cambia de inmobiliaria. Pasar a `Published` una propiedad sin imágenes responde `400`. **Errores:** `400`, `404`.
+Mismos campos que el alta, sin `agencyId`: una propiedad no cambia de inmobiliaria. Pasar a `Published` una propiedad sin imágenes responde `400`. Si una propiedad deja de estar `Published` (se pausa, se cierra o vuelve a borrador), **pierde el destacado**. **Errores:** `400`, `404`.
+
+### `PUT /api/properties/{id}/featured`
+
+Cuerpo: `{ "featured": true }` para destacar o `{ "featured": false }` para quitar el destacado. Destacar usa **un lugar del paquete de destacados vigente** de la cuenta de la propiedad y dura hasta que el paquete vence (`featuredUntil`). Quitar el destacado libera el lugar y siempre es posible.
+
+Reglas: solo se destaca una propiedad `Published` (`400` si no). Destacar una ya destacada no hace nada. Si la cuenta no tiene un paquete vigente, o ya tiene destacadas tantas como permite (`limit`), responde `422` con un mensaje listo para mostrar.
+
+**Respuesta `200`:** objeto `Property`. **Errores:** `400`, `401`, `403`, `404`, `422`.
 
 ### `POST /api/properties/{id}/images`
 
@@ -388,6 +411,7 @@ Parámetros, todos opcionales y combinables (se aplican con «y»):
 | `operation` | `Sale` \| `Rent` | Solo venta o solo renta. Un valor inválido responde `400`. |
 | `type` | `House` \| `Apartment` \| `Land` \| `Commercial` \| `Office` | Tipo de inmueble. Un valor inválido responde `400`. |
 | `location` | texto | Debe aparecer en la colonia, la ciudad o el estado (sin distinguir mayúsculas). No busca en el título ni en la calle. |
+| `agencyId` | guid | Solo las publicaciones activas de esa inmobiliaria. Es lo que abre el enlace «Publica: *nombre*» de las tarjetas (`/inmobiliarias/{id}` en la web). Un particular no se puede listar así: su `agencyId` no se publica y, si alguien lo conociera, tampoco devuelve nada. Un valor que no sea guid responde `400`; una inmobiliaria sin publicaciones activas, una página vacía. Se combina con los demás filtros. |
 | `ids` | guid, repetible | Solo estas propiedades (`?ids=<guid>&ids=<guid>`), siempre que además estén publicadas: un id de un borrador, de una propiedad pausada o eliminada, o desconocido simplemente no aparece. Lo usa «Mis favoritas» de la portada, cuyos `me gusta` se guardan en el navegador. Máximo **100** ids (`400` si se envían más); un valor que no sea guid responde `400`. Se combina con los demás filtros y con la paginación. |
 | `minPrice`, `maxPrice` | número | Rango de precio, en la moneda de `currency`. **No hay conversión** entre `MXN` y `USD`. Si se envía uno, `currency` es obligatoria. Deben ser ≥ 0, no pasar de 9,999,999,999,999.99 y `minPrice` ≤ `maxPrice` (`400` si no). |
 | `currency` | `MXN` \| `USD` | Moneda de los límites de precio. Sin límites, no filtra. |
@@ -399,11 +423,11 @@ Parámetros, todos opcionales y combinables (se aplican con «y»):
 | `page` | entero | Por defecto 1 |
 | `pageSize` | entero | Por defecto 10, máximo 100 |
 
-Orden: el de `sort` (más recientes primero por defecto). La respuesta tiene la misma forma paginada que las demás listas.
+Orden: el de `sort` (más recientes primero por defecto). Con el orden por defecto (`Recent`, o sin `sort`) los **anuncios destacados van primero**, y dentro de cada grupo los más recientes primero; con los demás órdenes (`PriceAsc`, `PriceDesc`, `AreaDesc`) no se anteponen. La respuesta tiene la misma forma paginada que las demás listas.
 
 **Ejemplos:** `GET /api/public/properties?operation=Rent&type=Apartment&location=roma` y `GET /api/public/properties?currency=MXN&maxPrice=3000000&minBedrooms=2&petsAllowed=true&amenities=Pool&sort=PriceAsc`
 
-Cada elemento de `items` trae solo datos públicos: `id`, `title`, `description`, `type`, `operation`, `price`, `currency`, `neighborhood`, `city`, `state`, `bedrooms`, `bathrooms`, `parkingSpaces`, `constructionArea`, `landArea`, `petsAllowed`, `furnished`, `amenities`, `approximateLatitude`, `approximateLongitude`, `imageIds` (la primera es la portada) y `agencyName`. **No incluye** la calle ni el código postal (la dirección exacta se da al contactar), ni el estado, ni identificadores de la inmobiliaria. La ubicación es **aproximada a propósito**: las coordenadas públicas se redondean a 3 decimales (unos 110 m) y son `null` si la propiedad no tiene ubicación; las exactas (`latitude`, `longitude`) solo las devuelve la API autenticada del personal.
+Cada elemento de `items` trae solo datos públicos: `id`, `title`, `description`, `type`, `operation`, `price`, `currency`, `neighborhood`, `city`, `state`, `bedrooms`, `bathrooms`, `parkingSpaces`, `constructionArea`, `landArea`, `petsAllowed`, `furnished`, `amenities`, `approximateLatitude`, `approximateLongitude`, `imageIds` (la primera es la portada), `agencyName`, `agencyId` e `isFeatured` (si el anuncio está destacado ahora; la portada le pone la etiqueta «Destacado», sin importar el orden elegido). **No incluye** la calle ni el código postal (la dirección exacta se da al contactar), ni el estado. El único identificador de la inmobiliaria es `agencyId`, que sirve para listar sus publicaciones; es `null` cuando publica un particular, que es anónimo. La ubicación es **aproximada a propósito**: las coordenadas públicas se redondean a 3 decimales (unos 110 m) y son `null` si la propiedad no tiene ubicación; las exactas (`latitude`, `longitude`) solo las devuelve la API autenticada del personal.
 
 Límite: 120 solicitudes por minuto por IP (`429` al excederlo).
 
@@ -470,6 +494,174 @@ Devuelve el `Inquiry` actualizado. Un estado inválido responde `400`.
 
 ---
 
+## Resumen de la inmobiliaria
+
+### `GET /api/dashboard`
+
+Lo que muestra la página de inicio del personal de una inmobiliaria (y del particular en su espacio). Solo cuenta lo de **su** inmobiliaria; el administrador de plataforma y los clientes reciben `403`.
+
+```json
+{
+  "properties": { "total": 12, "published": 6, "draft": 2, "paused": 1, "closed": 3, "featured": 2 },
+  "inquiries": { "new": 4, "inProgress": 2, "closed": 5, "receivedRecently": 3, "total": 11 },
+  "recentDays": 7,
+  "latestNewInquiries": [
+    { "id": "<guid>", "propertyId": "<guid>", "propertyTitle": "Casa en Polanco", "name": "Ana López", "createdAt": "2026-11-25T17:30:00Z" }
+  ]
+}
+```
+
+- `properties`: no cuenta las eliminadas. `published` son las **activas** (visibles al público), `paused` las retiradas temporalmente y `closed` las vendidas o rentadas (el sistema no tiene un estado «cancelada»). `featured` son las destacadas en este momento y coincide con lo usado del paquete de destacados.
+- `inquiries`: por etapa; `receivedRecently` son las recibidas en los últimos `recentDays` días (7), sin importar su etapa.
+- `latestNewInquiries`: hasta 5 solicitudes **nuevas** (sin atender), la más reciente primero. No trae el mensaje ni los datos de contacto del prospecto: para eso está `GET /api/inquiries`.
+
+**Errores:** `401`, `403`.
+## Planes y suscripciones
+
+Con esto se monetiza el portal. Los endpoints de planes y de cuentas son del administrador de plataforma; `GET /api/billing/me` es del personal de la inmobiliaria y `GET /api/billing/plans` y `POST /api/billing/checkout` del administrador de la inmobiliaria. Hay dos tipos de plan (`kind`):
+
+- **`Listings`**: cuántas propiedades puede tener la cuenta. El plan **gratuito** es de este tipo, es para particulares y permite 3.
+- **`Featured`**: un **paquete de destacados**. Su `limit` es cuántos anuncios pueden estar destacados **a la vez** mientras dura el paquete.
+
+Un plan se contrata de dos maneras: la propia cuenta lo **compra con tarjeta** (`POST /api/billing/checkout`, pantalla `/mi-plan`) o el administrador de plataforma **registra el pago** que recibió fuera del sistema (`POST /api/billing/accounts/{agencyId}/subscriptions`). **La pasarela de pagos es una simulación**: no mueve dinero (ver [Compra de un plan](#compra-de-un-plan-con-tarjeta)).
+
+En la aplicación web, lo contratado y lo usado (publicaciones y destacados, con su vencimiento) se muestra en la página de **Inicio** de todo el personal de una inmobiliaria, y solo el administrador ve el botón para comprar o cambiar de plan.
+
+### Objeto `Plan`
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `id` | guid | |
+| `name` | texto | Obligatorio, máx. 100. Único entre los planes no eliminados (`409` si se repite) |
+| `description` | texto o `null` | Máx. 500 |
+| `kind` | texto | `Listings` (por defecto) o `Featured` |
+| `audience` | texto | A quién se ofrece: `Individual` (particulares), `Company` (inmobiliarias, por defecto) o `Any` |
+| `limit` | entero o `null` | 1 a 100,000. `null` = ilimitado. Valores usuales: publicaciones 3, 100, 200, 300, 500 o ilimitadas; destacados 1, 3, 5, 10, 50, 100, 200, 300, 500, 1000 o ilimitados |
+| `period` | texto o `null` | Cuánto dura cada contratación: `Day`, `Week`, `Month` o `Year`. Obligatorio en un plan de pago; `null` en el gratuito, que no vence |
+| `price`, `currency` | número, texto | `price` de 0 a 9,999,999,999.99; `currency` `MXN` (por defecto) o `USD` |
+| `isActive` | booleano | Un plan inactivo no se puede contratar. `true` por defecto |
+| `isFree` | booleano | Solo lectura: `price` es 0 |
+| `createdAt`, `updatedAt` | fecha | |
+
+**El plan gratuito** es el plan con `price` 0. Debe ser de tipo `Listings`, para `Individual`, con `limit` y activo, y no lleva `period`. **Solo puede haber uno** (`409` si se intenta crear otro), no se puede eliminar (`400`) ni desactivar, y no puede pasar a ser de pago (`400`). Es el que tienen por omisión los particulares sin contratación.
+
+### `GET /api/plans`, `GET /api/plans/{id}`
+
+Solo `PlatformAdmin`. `GET /api/plans` acepta `kind` (`Listings` o `Featured`; otro valor responde `400`) y devuelve la lista **sin paginar**, con el gratuito primero y después por tipo, tope y nombre. `404` si el plan no existe.
+
+### `POST /api/plans`, `PUT /api/plans/{id}`
+
+Solo `PlatformAdmin`. Cuerpo: los campos editables del objeto `Plan` (todos menos `id`, `isFree` y las fechas). **Respuesta `201` / `200`:** objeto `Plan`. **Errores:** `400` (validación, o reglas del plan gratuito y del periodo), `403`, `404`, `409` (nombre repetido, o un segundo plan gratuito).
+
+Editar un plan **no cambia las contrataciones que ya existen**: cada una guarda una copia de lo que incluía y costaba.
+
+### `DELETE /api/plans/{id}`
+
+Solo `PlatformAdmin`. Eliminación **lógica**: el plan deja de ofrecerse, y las cuentas que ya lo contrataron lo conservan hasta que venza. **Respuesta `204`.** **Errores:** `400` (el plan gratuito no se elimina), `403`, `404`.
+
+### Objeto `AccountBilling`
+
+Lo que tiene contratado una cuenta y lo que usa.
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `agencyId`, `agencyName` | guid, texto | |
+| `isIndividual` | booleano | Cuenta gratuita de un particular |
+| `listings.planName` | texto o `null` | Plan de publicaciones vigente. `null` si una **inmobiliaria** no tiene ninguno (sin tope: así funcionan las que existían antes de los planes) |
+| `listings.limit` | entero o `null` | `null` = ilimitado |
+| `listings.used` | entero | Propiedades que tiene la cuenta: **los borradores cuentan y las eliminadas no** |
+| `listings.endsAt` | fecha o `null` | Cuándo vence el plan contratado. `null` en el gratuito y sin plan |
+| `listings.isFree` | booleano | Si es el plan gratuito |
+| `featured` | objeto o `null` | Paquete de destacados vigente: `planName`, `limit` (`null` = ilimitado), `used` (cuántas propiedades destacadas tiene ahora) y `endsAt`. `null` si no tiene |
+
+### `GET /api/billing/me`
+
+`AgencyAdmin`, `Supervisor` y `Seller` (también los particulares, que son `AgencyAdmin` de su espacio). Devuelve el `AccountBilling` de la propia cuenta. `403` para el administrador de plataforma y los clientes.
+
+### `GET /api/billing/accounts`
+
+Solo `PlatformAdmin`. Lista, sin paginar, el `AccountBilling` de **todas** las cuentas (inmobiliarias y particulares).
+
+### Objeto `Subscription`
+
+Una contratación: guarda una copia del plan al momento de registrarse.
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `id`, `agencyId`, `planId` | guid | |
+| `planName`, `kind`, `limit`, `period` | texto, texto, entero o `null`, texto | Copia de lo que incluía el plan |
+| `amountPaid`, `currency` | número, texto | Lo que se pagó |
+| `paymentReference` | texto o `null` | Folio, transferencia o nota. Máx. 200 |
+| `startsAt`, `endsAt` | fecha | Dura exactamente un `period` desde el registro |
+| `cancelledAt` | fecha o `null` | |
+| `isActive` | booleano | Vigente ahora: no cancelada y antes de `endsAt` |
+| `createdAt` | fecha | |
+
+### `GET /api/billing/accounts/{agencyId}/subscriptions`
+
+Solo `PlatformAdmin`. Historial de la cuenta, de la más reciente a la más antigua. `404` si la cuenta no existe.
+
+### `POST /api/billing/accounts/{agencyId}/subscriptions`
+
+Solo `PlatformAdmin`. Cuerpo: `{ "planId": "<guid>", "amountPaid": 799.00, "paymentReference": "SPEI-123" }`. `amountPaid` (de 0 a 9,999,999,999.99) y `paymentReference` son opcionales; sin `amountPaid` se toma el precio del plan.
+
+- El plan debe estar activo, no ser el gratuito y ser para ese tipo de cuenta (`Any`, o `Individual` / `Company` según la cuenta): si no, `400`.
+- **Reemplaza** la contratación vigente del **mismo tipo**: contratar otro plan de publicaciones cancela el anterior; contratar otro paquete de destacados cancela el anterior.
+- Al reemplazarse o cancelarse un paquete de destacados, **las propiedades de la cuenta dejan de estar destacadas** y hay que elegirlas de nuevo con `PUT /api/properties/{id}/featured`.
+- Al vencer un plan de publicaciones, la cuenta vuelve a su plan base: el gratuito si es particular; una inmobiliaria sin plan vuelve a no tener tope. Al vencer un paquete de destacados, las propiedades dejan de mostrarse destacadas.
+
+**Respuesta `201`:** objeto `Subscription`. **Errores:** `400`, `403`, `404` (cuenta o plan inexistentes).
+
+### `POST /api/billing/accounts/{agencyId}/subscriptions/{subscriptionId}/cancel`
+
+Solo `PlatformAdmin`. Cancela de inmediato una contratación vigente (si era un paquete de destacados, quita el destacado de las propiedades de la cuenta). Es idempotente: cancelar una que ya estaba cancelada o vencida no cambia nada. **Respuesta `200`:** objeto `Subscription`. **Errores:** `403`, `404` (la contratación no existe o es de otra cuenta).
+
+### Compra de un plan con tarjeta
+
+El administrador de la inmobiliaria (`AgencyAdmin`, que incluye al particular en su espacio gratuito) compra un plan para **su propia cuenta**. `Supervisor`, `Seller` y `PlatformAdmin` reciben `403`.
+
+#### `GET /api/billing/plans`
+
+Los planes que esa cuenta puede comprar: **activos, de pago y para su tipo de cuenta** (`Individual`, `Company` o `Any`). El plan gratuito nunca aparece. Devuelve la lista de objetos `Plan`, sin paginar.
+
+#### `POST /api/billing/checkout`
+
+Cuerpo:
+
+```json
+{
+  "planId": "<guid>",
+  "card": { "number": "4242 4242 4242 4242", "holderName": "ANA LOPEZ", "expiryMonth": 12, "expiryYear": 2028, "cvv": "123" }
+}
+```
+
+- **El precio sale del plan**, nunca del cliente: el cuerpo no tiene un campo de monto.
+- Validación de la tarjeta (`400`): número de 12 a 19 dígitos con dígito de control correcto (Luhn; acepta espacios y guiones), titular obligatorio (máx. 100), mes 1 a 12, año de cuatro cifras y CVV de 3 o 4 dígitos. Los mensajes de error **no repiten** lo capturado.
+- Un plan inexistente responde `404`; uno inactivo, el gratuito o de otro tipo de cuenta, `400`. Ninguno cobra.
+- Una tarjeta **vencida** (vence al terminar el mes indicado) o **rechazada** por la pasarela responde **`402`** con un `detail` en español para mostrar, y **no cambia nada**: la contratación vigente se conserva.
+- Si el cobro se aprueba, se crea la contratación con las mismas reglas que al registrarla el administrador de plataforma (empieza ahora, dura un periodo, **reemplaza** a la vigente del mismo tipo y, si es un paquete de destacados, quita el destacado a los anuncios). `amountPaid` es el precio del plan y `paymentReference` el identificador de la operación (`SIM-…`).
+
+**Respuesta `201`:** objeto `Subscription`. **Errores:** `400`, `401`, `402`, `403`, `404`.
+
+**La tarjeta no se guarda ni se escribe en registros** (los objetos que la llevan ocultan sus datos al imprimirse). Con una pasarela real lo normal es no recibirla nunca y usar un token del proveedor.
+
+#### Pasarela simulada
+
+`SimulatedPaymentGateway` implementa el puerto `IPaymentGateway`; cuando exista la pasarela real solo se reemplaza esa clase. Resultado según el número de tarjeta, como las tarjetas de prueba de Stripe:
+
+| Tarjeta | Resultado |
+|---|---|
+| `4242 4242 4242 4242` (y cualquier otra con dígito de control válido) | Aprobada |
+| `4000 0000 0000 0002` | Rechazada |
+| `4000 0000 0000 9995` | Fondos insuficientes |
+| `4000 0000 0000 0069` | Vencida |
+
+**Seguridad:** la simulación aprueba sin cobrar, así que **fuera de Desarrollo la API no arranca** a menos que se configure `Payments:AllowSimulated=true`. Es una protección para que nadie despliegue la simulación por descuido y deje que cualquier administrador contrate planes gratis.
+### Topes de publicaciones
+
+`POST /api/properties` responde `422` cuando la cuenta ya tiene tantas propiedades como permite su plan de publicaciones vigente (`listings.limit`). Sin contratación vigente, el tope de un particular es el del plan gratuito (3 por omisión; `AccountLimits:IndividualMaxProperties` solo se usa si no existe un plan gratuito) y una inmobiliaria no tiene tope. El mensaje de `detail` está en español y sirve para mostrarse.
+
+---
 ## Salud
 
 ### `GET /health`
@@ -488,8 +680,9 @@ Los errores siguen el formato `ProblemDetails` (RFC 9457).
 | `401` | Sin token, token inválido o vencido, o credenciales incorrectas en el login |
 | `403` | El rol no permite la operación, o una restricción de negocio (por ejemplo, eliminar la propia cuenta) |
 | `404` | El recurso no existe o no es visible para el usuario |
-| `409` | Conflicto, por ejemplo correo duplicado |
-| `422` | Se alcanzó un tope del plan de la cuenta (propiedades de una cuenta gratuita); `detail` trae un mensaje para mostrar |
+| `409` | Conflicto, por ejemplo correo duplicado, nombre de plan repetido o un segundo plan gratuito |
+| `402` | La pasarela rechazó el pago (tarjeta rechazada, sin fondos o vencida); `detail` trae el motivo para mostrar |
+| `422` | Se alcanzó un tope del plan de la cuenta (propiedades, o anuncios destacados a la vez); `detail` trae un mensaje para mostrar |
 | `429` | Límite de solicitudes superado (login, alta de cuenta, solicitudes de informes o catálogo público) |
 | `500` | Error interno. El detalle no se expone; solo se registra en el servidor. |
 

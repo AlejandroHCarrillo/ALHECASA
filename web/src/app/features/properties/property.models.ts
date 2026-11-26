@@ -145,6 +145,10 @@ export interface Property {
   petsAllowed: boolean;
   furnished: boolean;
   amenities: Amenity[];
+  /** Si está destacada ahora (el destacado vence solo al terminar el paquete). */
+  isFeatured: boolean;
+  /** Hasta cuándo dura el destacado; nulo si no está destacada. */
+  featuredUntil: string | null;
   /** Identificadores de las imágenes en orden de galería; la primera es la portada. */
   imageIds: string[];
   createdAt: string;

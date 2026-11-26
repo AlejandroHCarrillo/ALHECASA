@@ -49,6 +49,26 @@ const MENU_GROUPS: MenuItem[][] = [
       roles: [UserRole.PlatformAdmin, UserRole.AgencyAdmin],
       companyOnly: true,
     },
+    {
+      // El administrador de la inmobiliaria (o el particular) ve su plan y compra otro.
+      label: 'Mi plan',
+      route: '/mi-plan',
+      icon: 'fa-credit-card',
+      roles: [UserRole.AgencyAdmin],
+    },
+    {
+      // Catálogo de planes de pago con el que se monetiza el portal.
+      label: 'Planes',
+      route: '/planes',
+      icon: 'fa-tags',
+      roles: [UserRole.PlatformAdmin],
+    },
+    {
+      label: 'Suscripciones',
+      route: '/suscripciones',
+      icon: 'fa-receipt',
+      roles: [UserRole.PlatformAdmin],
+    },
   ],
 ];
 

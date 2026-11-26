@@ -71,6 +71,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Testing");
 
         builder.UseSetting("Jwt:SigningKey", "integration-tests-signing-key-0123456789-abcdef");
+        builder.UseSetting("Payments:AllowSimulated", "true");
         builder.UseSetting("Database:MigrateOnStartup", "false");
         builder.UseSetting("Database:SeedOnStartup", "false");
 

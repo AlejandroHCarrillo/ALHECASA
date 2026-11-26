@@ -1,0 +1,104 @@
+<div class="space-y-4">
+  <div>
+    <h1 class="text-2xl font-bold">Suscripciones</h1>
+    <p class="text-sm text-base-content/70">
+      El plan de publicaciones y el paquete de destacados de cada cuenta. El pago se registra aquí al contratar.
+    </p>
+  </div>
+
+  <div>
+    <label class="sr-only" for="account-search">Buscar cuenta</label>
+    <input
+      id="account-search"
+      type="search"
+      class="input input-bordered input-sm w-full max-w-xs"
+      placeholder="Buscar cuenta"
+      [value]="search()"
+      (input)="setSearch($any($event.target).value)"
+    />
+  </div>
+
+  @if (error(); as message) {
+    <app-error-alert [message]="message" (dismissed)="error.set(null)" />
+  }
+
+  <div class="card bg-base-100 shadow">
+    <div class="overflow-x-auto">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Cuenta</th>
+            <th>Publicaciones</th>
+            <th>Destacados</th>
+            <th class="text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (loading() && !loaded()) {
+            <tr>
+              <td colspan="4" class="py-8 text-center">
+                <span class="loading loading-spinner loading-md" aria-label="Cargando"></span>
+              </td>
+            </tr>
+          } @else {
+            @for (account of visible(); track account.agencyId) {
+              <tr data-testid="account-row">
+                <td>
+                  <div class="font-medium">{{ account.agencyName }}</div>
+                  <div class="text-xs text-base-content/60">{{ account.isIndividual ? 'Particular' : 'Inmobiliaria' }}</div>
+                </td>
+                <td>
+                  <div class="text-sm">
+                    {{ account.listings.planName ?? 'Sin plan (sin tope)' }}
+                    @if (account.listings.isFree) {
+                      <span class="badge badge-accent badge-sm ml-1">Gratuito</span>
+                    }
+                  </div>
+                  <div class="text-xs text-base-content/70">
+                    {{ describeUsage(account.listings.used, account.listings.limit) }}
+                    @if (account.listings.endsAt) {
+                      · vence {{ account.listings.endsAt | date: 'dd/MM/yyyy' }}
+                    }
+                  </div>
+                  @if (account.listings.limit !== null) {
+                    <progress
+                      class="progress w-32"
+                      [class.progress-error]="usagePercent(account.listings.used, account.listings.limit) >= 100"
+                      [value]="usagePercent(account.listings.used, account.listings.limit)"
+                      max="100"
+                      aria-label="Publicaciones usadas"
+                    ></progress>
+                  }
+                </td>
+                <td>
+                  @if (account.featured; as featured) {
+                    <div class="text-sm">{{ featured.planName }}</div>
+                    <div class="text-xs text-base-content/70">
+                      {{ describeUsage(featured.used, featured.limit) }} · vence {{ featured.endsAt | date: 'dd/MM/yyyy' }}
+                    </div>
+                  } @else {
+                    <span class="text-sm text-base-content/60">Sin paquete</span>
+                  }
+                </td>
+                <td class="text-right">
+                  <button type="button" class="btn btn-primary btn-sm" data-testid="open-plans" (click)="open(account)">
+                    <i class="fa-solid fa-receipt" aria-hidden="true"></i>
+                    Planes
+                  </button>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="4" class="py-8 text-center text-base-content/60">No hay cuentas.</td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+@if (selected(); as account) {
+  <app-account-plans-modal [account]="account" (changed)="reload()" (closed)="close()" />
+}

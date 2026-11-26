@@ -32,7 +32,12 @@ public sealed record PropertyDto(
     int? ParkingSpaces,
     bool PetsAllowed,
     bool Furnished,
-    IReadOnlyList<Amenity> Amenities);
+    IReadOnlyList<Amenity> Amenities,
+    bool IsFeatured,
+    DateTimeOffset? FeaturedUntil);
+
+/// <summary>Destacar o quitar el destacado de una propiedad.</summary>
+public sealed record SetFeaturedRequest(bool Featured);
 
 /// <summary>Campos que se capturan al crear o editar una propiedad.</summary>
 public abstract record PropertyRequest

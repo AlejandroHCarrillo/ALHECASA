@@ -18,6 +18,12 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/public-property-detail/public-property-detail').then((m) => m.PublicPropertyDetail),
   },
+  // Todas las publicaciones activas de una inmobiliaria: público, como el detalle.
+  {
+    path: 'inmobiliarias/:id',
+    title: 'Publicaciones de la inmobiliaria · ALHECASA',
+    loadComponent: () => import('./features/agency-listings/agency-listings').then((m) => m.AgencyListings),
+  },
   {
     path: 'login',
     canActivate: [guestGuard],
@@ -64,6 +70,24 @@ export const routes: Routes = [
         canActivate: [roleGuard(UserRole.PlatformAdmin, UserRole.AgencyAdmin), companyGuard],
         title: 'Usuarios · ALHECASA',
         loadChildren: () => import('./features/users/users.routes').then((m) => m.USERS_ROUTES),
+      },
+      {
+        path: 'mi-plan',
+        canActivate: [roleGuard(UserRole.AgencyAdmin)],
+        title: 'Mi plan · ALHECASA',
+        loadChildren: () => import('./features/billing/billing.routes').then((m) => m.BILLING_ROUTES),
+      },
+      {
+        path: 'planes',
+        canActivate: [roleGuard(UserRole.PlatformAdmin)],
+        title: 'Planes · ALHECASA',
+        loadChildren: () => import('./features/plans/plans.routes').then((m) => m.PLANS_ROUTES),
+      },
+      {
+        path: 'suscripciones',
+        canActivate: [roleGuard(UserRole.PlatformAdmin)],
+        title: 'Suscripciones · ALHECASA',
+        loadChildren: () => import('./features/subscriptions/subscriptions.routes').then((m) => m.SUBSCRIPTIONS_ROUTES),
       },
     ],
   },

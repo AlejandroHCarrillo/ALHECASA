@@ -27,10 +27,12 @@ const sample = (overrides: Partial<PublicProperty> = {}): PublicProperty => ({
   approximateLongitude: null,
   imageIds: ['img-a', 'img-b', 'img-c'],
   agencyName: 'Demo Real Estate',
+  agencyId: 'agency-1',
   parkingSpaces: null,
   petsAllowed: false,
   furnished: false,
   amenities: [],
+  isFeatured: false,
   ...overrides,
 });
 
@@ -80,8 +82,36 @@ describe('PublicPropertyDetail', () => {
     expect(text).toContain('Lomas, Ciudad de México, CDMX');
     expect(text).toContain('Tres niveles y jardín.');
     expect(text).toContain('520 m²');
-    expect(text).toContain('Publica: Demo Real Estate');
+    expect(text.replace(/\s+/g, ' ')).toContain('Publica: Demo Real Estate');
     expect(text).not.toContain('Terreno'); // sin dato, no se muestra
+  });
+
+  it('links the publisher to all of its active publications, but not an individual', async () => {
+    const company = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample({ agencyName: 'Demo Real Estate', agencyId: 'agency-7' }));
+    company.detectChanges();
+    const link = root(company).querySelector('[data-testid="agency-link"]') as HTMLAnchorElement;
+    expect(link.textContent?.trim()).toBe('Demo Real Estate');
+    expect(link.getAttribute('href')).toBe('/inmobiliarias/agency-7');
+
+    TestBed.resetTestingModule();
+    const individual = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample({ agencyName: 'Particular', agencyId: null }));
+    individual.detectChanges();
+    expect(root(individual).querySelector('[data-testid="agency-link"]')).toBeNull();
+    expect((root(individual).textContent as string).replace(/\s+/g, ' ')).toContain('Publica: Particular');
+  });
+  it('badges a featured publication and only a featured one', async () => {
+    const featured = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample({ isFeatured: true }));
+    featured.detectChanges();
+    expect(root(featured).querySelector('[data-testid="featured-badge"]')?.textContent).toContain('Destacado');
+
+    TestBed.resetTestingModule();
+    const normal = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample({ isFeatured: false }));
+    normal.detectChanges();
+    expect(root(normal).querySelector('[data-testid="featured-badge"]')).toBeNull();
   });
 
   it('shows every photo as a thumbnail and the first one large', async () => {
@@ -233,5 +263,18 @@ describe('PublicPropertyDetail', () => {
 
     expect(root(harness).querySelector('[data-testid="features"]')).toBeNull();
     expect(root(harness).querySelector('[data-testid="parking"]')).toBeNull();
+  });
+
+  it('badges the publication as featured only when it is', async () => {
+    const featured = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample({ isFeatured: true }));
+    featured.detectChanges();
+    expect(root(featured).querySelector('[data-testid="featured-badge"]')?.textContent).toContain('Destacado');
+
+    TestBed.resetTestingModule();
+    const plain = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample());
+    plain.detectChanges();
+    expect(root(plain).querySelector('[data-testid="featured-badge"]')).toBeNull();
   });
 });

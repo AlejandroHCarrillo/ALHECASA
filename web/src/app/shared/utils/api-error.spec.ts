@@ -29,4 +29,13 @@ describe('resolveApiError', () => {
   it('has a generic message for a 422 without detail', () => {
     expect(resolveApiError(new HttpErrorResponse({ status: 422 }))).toContain('límite');
   });
+
+  it('shows the reason the payment gateway sends on 402', () => {
+    const error = new HttpErrorResponse({ status: 402, error: { detail: 'La tarjeta no tiene fondos suficientes.' } });
+    expect(resolveApiError(error)).toBe('La tarjeta no tiene fondos suficientes.');
+  });
+
+  it('has a generic message for a 402 without detail', () => {
+    expect(resolveApiError(new HttpErrorResponse({ status: 402 }))).toContain('pago');
+  });
 });

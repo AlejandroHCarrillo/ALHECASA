@@ -1,5 +1,6 @@
 using Alhecasa.Application.Abstractions;
 using Alhecasa.Application.Common;
+using Alhecasa.Application.Dashboard;
 using Alhecasa.Application.Properties;
 using Alhecasa.Domain.Entities;
 using Alhecasa.Domain.Enums;
@@ -7,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Alhecasa.Infrastructure.Persistence.Repositories;
 
-internal sealed class PropertyRepository(AlhecasaDbContext db) : IPropertyRepository
+internal sealed class PropertyRepository(AlhecasaDbContext db, TimeProvider timeProvider) : IPropertyRepository
 {
     public Task<Property?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         db.Properties
@@ -17,6 +18,45 @@ internal sealed class PropertyRepository(AlhecasaDbContext db) : IPropertyReposi
 
     public Task<int> CountByAgencyAsync(Guid agencyId, CancellationToken cancellationToken = default) =>
         db.Properties.IgnoreQueryFilters().CountAsync(p => p.AgencyId == agencyId && !p.IsDeleted, cancellationToken);
+
+    public async Task<IReadOnlyList<Property>> ListFeaturedAsync(Guid agencyId, DateTimeOffset now, CancellationToken cancellationToken = default) =>
+        await db.Properties.IgnoreQueryFilters()
+            .Where(p => p.AgencyId == agencyId && !p.IsDeleted && p.FeaturedUntil > now)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyDictionary<Guid, PropertyUsage>> GetUsageByAgencyAsync(DateTimeOffset now, CancellationToken cancellationToken = default)
+    {
+        var rows = await db.Properties.IgnoreQueryFilters().AsNoTracking()
+            .Where(p => !p.IsDeleted)
+            .GroupBy(p => p.AgencyId)
+            .Select(g => new { AgencyId = g.Key, Total = g.Count(), Featured = g.Count(p => p.FeaturedUntil > now) })
+            .ToListAsync(cancellationToken);
+
+        return rows.ToDictionary(r => r.AgencyId, r => new PropertyUsage(r.Total, r.Featured));
+    }
+
+    public async Task<PropertyStats> GetStatsAsync(Guid agencyId, DateTimeOffset now, CancellationToken cancellationToken = default)
+    {
+        // Los filtros globales ya aíslan por inmobiliaria y descartan lo eliminado; el filtro explícito es una segunda barrera.
+        var byStatus = await db.Properties.AsNoTracking()
+            .Where(p => p.AgencyId == agencyId)
+            .GroupBy(p => p.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        var featured = await db.Properties.AsNoTracking()
+            .CountAsync(p => p.AgencyId == agencyId && p.FeaturedUntil > now, cancellationToken);
+
+        int Of(PropertyStatus status) => byStatus.Where(r => r.Status == status).Sum(r => r.Count);
+
+        return new PropertyStats(
+            byStatus.Sum(r => r.Count),
+            Of(PropertyStatus.Published),
+            Of(PropertyStatus.Draft),
+            Of(PropertyStatus.Paused),
+            Of(PropertyStatus.Closed),
+            featured);
+    }
 
     public Task<PropertyImage?> GetImageForServingAsync(Guid imageId, CancellationToken cancellationToken = default) =>
         db.PropertyImages
@@ -82,6 +122,12 @@ internal sealed class PropertyRepository(AlhecasaDbContext db) : IPropertyReposi
             source = source.Where(p => p.AgencyId == agencyId);
         }
 
+        if (query.AgencyId is not null)
+        {
+            // El catálogo público nunca agrupa por particular: es anónimo (ver PublicPropertyDto.AgencyId).
+            source = source.Where(p => p.AgencyId == query.AgencyId && p.Agency!.Kind != AgencyKind.Individual);
+        }
+
         if (query.Ids is { Count: > 0 })
         {
             // La visibilidad (publicada, no borrada…) ya está aplicada: un id de un borrador simplemente no aparece.
@@ -103,7 +149,14 @@ internal sealed class PropertyRepository(AlhecasaDbContext db) : IPropertyReposi
 
         var total = await source.CountAsync(cancellationToken);
 
-        var items = await Sort(source, query.Sort)
+        // En el catálogo público, con el orden por omisión (más recientes), los destacados van primero. Con otro orden (precio,
+        // superficie) no se anteponen: el visitante pidió un orden y debe respetarse; la etiqueta «Destacado» sí se ve.
+        var now = timeProvider.GetUtcNow();
+        IQueryable<Property> ordered = query.Sort == PropertySort.Recent
+            ? source.OrderByDescending(p => p.FeaturedUntil > now).ThenByDescending(p => p.CreatedAt).ThenByDescending(p => p.Id)
+            : Sort(source, query.Sort);
+
+        var items = await ordered
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
             .ToListAsync(cancellationToken);

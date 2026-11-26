@@ -1,5 +1,6 @@
 using Alhecasa.Application.Abstractions;
 using Alhecasa.Infrastructure.Identity;
+using Alhecasa.Infrastructure.Payments;
 using Alhecasa.Infrastructure.Persistence;
 using Alhecasa.Infrastructure.Persistence.Repositories;
 using Alhecasa.Infrastructure.Persistence.Seeding;
@@ -34,6 +35,11 @@ public static class DependencyInjection
         services.AddScoped<IAgencyRepository, AgencyRepository>();
         services.AddScoped<IPropertyRepository, PropertyRepository>();
         services.AddScoped<IInquiryRepository, InquiryRepository>();
+        services.AddScoped<IPlanRepository, PlanRepository>();
+        services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
+
+        // Pasarela de pagos: hoy una simulación. Con la real, se sustituye esta línea (y Program.cs deja de exigir Payments:AllowSimulated).
+        services.AddSingleton<IPaymentGateway, SimulatedPaymentGateway>();
 
         services.AddOptions<StorageOptions>().Bind(configuration.GetSection(StorageOptions.SectionName));
         services.AddSingleton<IImageStorage, LocalImageStorage>();

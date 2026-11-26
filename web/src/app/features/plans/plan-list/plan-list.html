@@ -1,0 +1,140 @@
+<div class="space-y-4">
+  <div class="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+    <div>
+      <h1 class="text-2xl font-bold">Planes</h1>
+      <p class="text-sm text-base-content/70">
+        Los planes de publicaciones y los paquetes de destacados con los que se monetiza el portal.
+      </p>
+    </div>
+    <button type="button" class="btn btn-primary" data-testid="add-plan" (click)="openForm(null)">
+      <i class="fa-solid fa-plus" aria-hidden="true"></i>
+      Agregar
+    </button>
+  </div>
+
+  <div>
+    <label class="sr-only" for="plan-kind-filter">Tipo de plan</label>
+    <select
+      id="plan-kind-filter"
+      class="select select-bordered select-sm"
+      [value]="kindFilter()"
+      (change)="setKindFilter($any($event.target).value)"
+    >
+      <option value="">Todos los planes</option>
+      @for (kind of kinds; track kind) {
+        <option [value]="kind">{{ kindLabels[kind] }}</option>
+      }
+    </select>
+  </div>
+
+  @if (listError(); as message) {
+    <app-error-alert [message]="message" (dismissed)="listError.set(null)" />
+  }
+
+  <div class="card bg-base-100 shadow">
+    <div class="overflow-x-auto">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Tipo</th>
+            <th>Incluye</th>
+            <th>Para</th>
+            <th>Vigencia</th>
+            <th class="text-right">Precio</th>
+            <th>Estado</th>
+            <th class="text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (loading() && !loaded()) {
+            <tr>
+              <td colspan="8" class="py-8 text-center">
+                <span class="loading loading-spinner loading-md" aria-label="Cargando"></span>
+              </td>
+            </tr>
+          } @else {
+            @for (plan of visible(); track plan.id) {
+              <tr data-testid="plan-row">
+                <td class="font-medium">
+                  {{ plan.name }}
+                  @if (plan.isFree) {
+                    <span class="badge badge-accent badge-sm ml-1" data-testid="free-badge">Gratuito</span>
+                  }
+                </td>
+                <td>{{ kindLabels[plan.kind] }}</td>
+                <td>{{ describeLimit(plan.kind, plan.limit) }}</td>
+                <td>{{ audienceLabels[plan.audience] }}</td>
+                <td>{{ plan.period ? periodLabels[plan.period] : 'Sin vencimiento' }}</td>
+                <td class="whitespace-nowrap text-right">
+                  @if (plan.isFree) {
+                    Gratis
+                  } @else {
+                    {{ plan.currency }} {{ plan.price | number: '1.2-2' }}
+                    <span class="text-xs text-base-content/60">{{ plan.period ? periodUnits[plan.period] : '' }}</span>
+                  }
+                </td>
+                <td>
+                  <span class="badge" [class.badge-success]="plan.isActive" [class.badge-ghost]="!plan.isActive">
+                    {{ plan.isActive ? 'Activo' : 'Inactivo' }}
+                  </span>
+                </td>
+                <td class="text-right">
+                  <div class="inline-flex gap-2">
+                    <div class="tooltip" data-tip="Editar">
+                      <button type="button" class="btn btn-warning btn-sm btn-square" aria-label="Editar plan" (click)="openForm(plan)">
+                        <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                    <div class="tooltip" [attr.data-tip]="plan.isFree ? 'El plan gratuito no se puede eliminar' : 'Eliminar'">
+                      <button
+                        type="button"
+                        class="btn btn-error btn-sm btn-square"
+                        aria-label="Eliminar plan"
+                        [disabled]="plan.isFree"
+                        (click)="askDelete(plan)"
+                      >
+                        <i class="fa-solid fa-trash" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="8" class="py-8 text-center text-base-content/60">No hay planes.</td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+@if (showForm()) {
+  <app-plan-form-modal [plan]="formPlan()" (saved)="onSaved($event)" (cancelled)="closeForm()" />
+}
+
+@if (deleteTarget(); as target) {
+  <app-modal title="Eliminar plan" boxClass="max-w-md" (closed)="cancelDelete()">
+    <div class="space-y-4">
+      @if (deleteError(); as message) {
+        <app-error-alert [message]="message" (dismissed)="deleteError.set(null)" />
+      }
+      <p>
+        ¿Seguro que deseas eliminar el plan <strong>{{ target.name }}</strong
+        >? Dejará de ofrecerse; las cuentas que ya lo contrataron conservan lo que pagaron hasta que venza.
+      </p>
+      <div class="modal-action">
+        <button type="button" class="btn" [disabled]="deleting()" (click)="cancelDelete()">Cancelar</button>
+        <button type="button" class="btn btn-error" [disabled]="deleting()" (click)="confirmDelete()">
+          @if (deleting()) {
+            <span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+          }
+          Eliminar
+        </button>
+      </div>
+    </div>
+  </app-modal>
+}

@@ -22,6 +22,10 @@ public sealed class AlhecasaDbContext(
 
     public DbSet<InquiryFollowUp> InquiryFollowUps => Set<InquiryFollowUp>();
 
+    public DbSet<Plan> Plans => Set<Plan>();
+
+    public DbSet<Subscription> Subscriptions => Set<Subscription>();
+
     // Propiedades del contexto usadas por los filtros globales: EF las evalúa en cada consulta
     // con los valores del usuario de la solicitud actual.
     private bool CurrentIsPlatformAdmin => currentUser.IsPlatformAdmin;
@@ -64,6 +68,12 @@ public sealed class AlhecasaDbContext(
         modelBuilder.Entity<InquiryFollowUp>().HasQueryFilter(f =>
             !f.IsDeleted
             && (CurrentIsPlatformAdmin || (CurrentAgencyId != null && f.AgencyId == CurrentAgencyId)));
+
+        // Las contrataciones son de cada cuenta: el personal solo ve las suyas; el administrador de plataforma, todas.
+        // Los planes son del catálogo de la plataforma (no son de una inmobiliaria): solo se excluyen los eliminados, en el repositorio.
+        modelBuilder.Entity<Subscription>().HasQueryFilter(s =>
+            !s.IsDeleted
+            && (CurrentIsPlatformAdmin || (CurrentAgencyId != null && s.AgencyId == CurrentAgencyId)));
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

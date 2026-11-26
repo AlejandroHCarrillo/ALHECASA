@@ -11,7 +11,7 @@ public sealed class PublicPropertyServiceTests
 {
     private readonly FakePropertyRepository _properties = new();
 
-    private PublicPropertyService CreateService() => new(_properties, new FakeImageStorage());
+    private PublicPropertyService CreateService() => new(_properties, new FakeImageStorage(), TimeProvider.System);
 
     private Property Add(PropertyStatus status)
     {

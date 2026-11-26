@@ -55,6 +55,18 @@ public sealed class PropertiesController(IPropertyService propertyService) : Con
         Ok(await propertyService.UpdateAsync(id, request, cancellationToken));
 
     /// <summary>
+    /// Destaca la propiedad o le quita el destacado. Destacar exige que esté publicada y que la cuenta tenga un paquete de
+    /// destacados vigente con lugar libre (<c>422</c> si no). El destacado dura hasta que vence el paquete.
+    /// </summary>
+    [HttpPut("{id:guid}/featured")]
+    [ProducesResponseType<PropertyDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<PropertyDto>> SetFeatured(Guid id, SetFeaturedRequest request, CancellationToken cancellationToken) =>
+        Ok(await propertyService.SetFeaturedAsync(id, request, cancellationToken));
+
+    /// <summary>
     /// Cambia la galería de la propiedad en una sola operación (multipart/form-data): <c>files</c> trae las imágenes nuevas
     /// y <c>removeImageIds</c> los identificadores de las que se quitan. Máximo 10 imágenes de hasta 5 MB (JPEG, PNG o WebP);
     /// una propiedad publicada necesita al menos una.
