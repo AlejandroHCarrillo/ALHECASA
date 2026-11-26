@@ -11,6 +11,9 @@ public sealed class SeedOptions
     public SeedUser? PlatformAdmin { get; init; }
 
     public SeedAgency? DemoAgency { get; init; }
+
+    /// <summary>Catálogo de demostración adicional (inmobiliarias Goldita y Osito); ver <see cref="DemoCatalog"/>.</summary>
+    public SeedDemoCatalog? DemoCatalog { get; init; }
 }
 
 public sealed class SeedUser
@@ -47,4 +50,16 @@ public sealed class SeedAgency
     /// <c>api/scripts/download-sample-images.ps1</c> la llena.
     /// </summary>
     public string? SampleImagesPath { get; init; }
+}
+
+/// <summary>Activa el catálogo de demostración: se siembra solo si hay contraseña (nunca en un archivo versionado).</summary>
+public sealed class SeedDemoCatalog
+{
+    /// <summary>Contraseña de todos los usuarios del catálogo. Sin ella, no se siembra nada.</summary>
+    public string Password { get; init; } = string.Empty;
+
+    /// <summary>Carpeta con las fotos (una subcarpeta 01…10 por anuncio). Si es relativa, cuelga de la carpeta de la aplicación.</summary>
+    public string ImagesPath { get; init; } = "SeedData/catalog-images";
+
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(Password);
 }

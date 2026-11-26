@@ -18,6 +18,14 @@ public sealed class AlhecasaDbContext(
 
     public DbSet<PropertyImage> PropertyImages => Set<PropertyImage>();
 
+    public DbSet<Inquiry> Inquiries => Set<Inquiry>();
+
+    public DbSet<InquiryFollowUp> InquiryFollowUps => Set<InquiryFollowUp>();
+
+    public DbSet<Plan> Plans => Set<Plan>();
+
+    public DbSet<Subscription> Subscriptions => Set<Subscription>();
+
     // Propiedades del contexto usadas por los filtros globales: EF las evalúa en cada consulta
     // con los valores del usuario de la solicitud actual.
     private bool CurrentIsPlatformAdmin => currentUser.IsPlatformAdmin;
@@ -51,6 +59,21 @@ public sealed class AlhecasaDbContext(
         modelBuilder.Entity<PropertyImage>().HasQueryFilter(i =>
             !i.IsDeleted
             && (CurrentIsPlatformAdmin || (CurrentAgencyId != null && i.AgencyId == CurrentAgencyId)));
+
+        // Las solicitudes de informes llegan sin sesión, pero solo las lee el personal de la inmobiliaria dueña.
+        modelBuilder.Entity<Inquiry>().HasQueryFilter(i =>
+            !i.IsDeleted
+            && (CurrentIsPlatformAdmin || (CurrentAgencyId != null && i.AgencyId == CurrentAgencyId)));
+
+        modelBuilder.Entity<InquiryFollowUp>().HasQueryFilter(f =>
+            !f.IsDeleted
+            && (CurrentIsPlatformAdmin || (CurrentAgencyId != null && f.AgencyId == CurrentAgencyId)));
+
+        // Las contrataciones son de cada cuenta: el personal solo ve las suyas; el administrador de plataforma, todas.
+        // Los planes son del catálogo de la plataforma (no son de una inmobiliaria): solo se excluyen los eliminados, en el repositorio.
+        modelBuilder.Entity<Subscription>().HasQueryFilter(s =>
+            !s.IsDeleted
+            && (CurrentIsPlatformAdmin || (CurrentAgencyId != null && s.AgencyId == CurrentAgencyId)));
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

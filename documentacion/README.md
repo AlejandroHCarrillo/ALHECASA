@@ -156,6 +156,7 @@ sqlcmd -I -S "(localdb)\MSSQLLocalDB" -d Alhecasa -Q "SELECT Email, Role FROM Us
 | `Jwt:Issuer`, `Jwt:Audience`, `Jwt:ExpirationMinutes` | `appsettings.json` | Parámetros del token (60 minutos por defecto) |
 | `Jwt:SigningKey` | **user-secrets / entorno** | Clave de firma HMAC (obligatoria, mínimo 32 caracteres) |
 | `Cors:AllowedOrigins` | `appsettings.json` | Orígenes permitidos (por defecto `http://localhost:4200`) |
+| `Payments:AllowSimulated` | variable de entorno | Obligatoria fuera de Desarrollo (`true`): la pasarela de pagos es una simulación que no cobra |
 | `Database:MigrateOnStartup` | `appsettings*.json` | Aplica migraciones al iniciar |
 | `Database:SeedOnStartup` | `appsettings*.json` | Crea los datos iniciales al iniciar |
 | `Seed:*` | `appsettings.Development.json` y user-secrets | Datos del administrador y la inmobiliaria demo |

@@ -91,6 +91,108 @@ public sealed class PublicPropertiesEndpointsTests(ApiFactory factory) : IClassF
         Assert.DoesNotContain("postalCode", body, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task ExposesTheLocationOnlyApproximately_NeverTheExactCoordinates()
+    {
+        var agency = await factory.AddAgencyAsync();
+        var property = await factory.AddPropertyAsync(agency.Id, "Con mapa", status: PropertyStatus.Published, latitude: 19.4326077m, longitude: -99.1332079m);
+
+        var list = await factory.CreateClient().GetAsync($"{Url}?pageSize=100");
+        var detail = await factory.CreateClient().GetAsync($"{Url}/{property.Id}");
+
+        foreach (var body in new[] { await list.Content.ReadAsStringAsync(), await detail.Content.ReadAsStringAsync() })
+        {
+            Assert.Contains("19.433", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("19.4326", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("99.1332", body, StringComparison.Ordinal);
+        }
+
+        var dto = await detail.ReadAsync<PublicPropertyDto>();
+        Assert.Equal(19.433m, dto.ApproximateLatitude);
+        Assert.Equal(-99.133m, dto.ApproximateLongitude);
+    }
+
+    // --- Filtro por identificadores («Mis favoritas») ---------------------------------------
+
+    private static string IdsQuery(IEnumerable<Guid> ids) => string.Concat(ids.Select(id => $"&ids={id}"));
+
+    [Fact]
+    public async Task Ids_ReturnsOnlyTheRequestedPublishedProperties_AndIgnoresUnknownOnes()
+    {
+        var agency = await factory.AddAgencyAsync();
+        var first = await factory.AddPropertyAsync(agency.Id, "Favorita uno", status: PropertyStatus.Published);
+        var second = await factory.AddPropertyAsync(agency.Id, "Favorita dos", status: PropertyStatus.Published);
+        await factory.AddPropertyAsync(agency.Id, "No favorita", status: PropertyStatus.Published);
+
+        var page = await ListAsync(IdsQuery([first.Id, second.Id, Guid.NewGuid()]));
+
+        Assert.Equal(2, page.TotalCount);
+        Assert.Equivalent(new[] { first.Id, second.Id }, page.Items.Select(p => p.Id));
+    }
+
+    [Theory]
+    [InlineData(PropertyStatus.Draft)]
+    [InlineData(PropertyStatus.Paused)]
+    [InlineData(PropertyStatus.Closed)]
+    public async Task Ids_NeverRevealsAPropertyThatIsNotPublished(PropertyStatus status)
+    {
+        var agency = await factory.AddAgencyAsync();
+        var hidden = await factory.AddPropertyAsync(agency.Id, "Oculta", status: status);
+
+        var page = await ListAsync(IdsQuery([hidden.Id]));
+
+        Assert.Empty(page.Items);
+        Assert.Equal(0, page.TotalCount);
+    }
+
+    [Fact]
+    public async Task Ids_CombinesWithTheOtherFilters()
+    {
+        var agency = await factory.AddAgencyAsync();
+        var city = $"Ciudad{Guid.NewGuid():N}"[..14];
+        var sale = await factory.AddPropertyAsync(agency.Id, "Venta", city, PropertyStatus.Published, operation: OperationType.Sale);
+        var rent = await factory.AddPropertyAsync(agency.Id, "Renta", city, PropertyStatus.Published, operation: OperationType.Rent);
+
+        var page = await ListAsync($"{IdsQuery([sale.Id, rent.Id])}&operation=Rent");
+
+        Assert.Equal([rent.Id], page.Items.Select(p => p.Id));
+    }
+
+    [Fact]
+    public async Task Ids_ArePaged()
+    {
+        var agency = await factory.AddAgencyAsync();
+        var ids = new List<Guid>();
+        for (var i = 0; i < 3; i++)
+        {
+            ids.Add((await factory.AddPropertyAsync(agency.Id, $"Fav {i}", status: PropertyStatus.Published)).Id);
+        }
+
+        var response = await factory.CreateClient().GetAsync($"{Url}?pageSize=2&page=2{IdsQuery(ids)}");
+        var page = await response.ReadAsync<PagedResult<PublicPropertyDto>>();
+
+        Assert.Equal(3, page.TotalCount);
+        Assert.Single(page.Items);
+    }
+
+    [Fact]
+    public async Task Ids_MoreThanTheLimit_Returns400()
+    {
+        var ids = Enumerable.Range(0, PublicPropertyQuery.MaxIds + 1).Select(_ => Guid.NewGuid());
+
+        var response = await factory.CreateClient().GetAsync($"{Url}?{IdsQuery(ids).TrimStart('&')}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Ids_ThatAreNotGuids_Return400()
+    {
+        var response = await factory.CreateClient().GetAsync($"{Url}?ids=no-es-un-guid");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     // --- Detalle ----------------------------------------------------------------------------
 
     [Fact]

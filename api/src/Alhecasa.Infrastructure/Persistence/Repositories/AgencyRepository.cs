@@ -9,6 +9,9 @@ internal sealed class AgencyRepository(AlhecasaDbContext db) : IAgencyRepository
     public Task<Agency?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         db.Agencies.FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 
+    public async Task AddAsync(Agency agency, CancellationToken cancellationToken = default) =>
+        await db.Agencies.AddAsync(agency, cancellationToken);
+
     public async Task<IReadOnlyList<Agency>> ListAsync(CancellationToken cancellationToken = default) =>
         await db.Agencies.AsNoTracking().OrderBy(a => a.Name).ToListAsync(cancellationToken);
 }

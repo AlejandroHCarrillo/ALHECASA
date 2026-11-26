@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { Observable, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { UserRole } from '../models/user-role';
-import { CurrentUser, LoginRequest, LoginResponse, Session } from './auth.models';
+import { CurrentUser, LoginRequest, LoginResponse, RegisterRequest, Session } from './auth.models';
 
 const SESSION_KEY = 'alhecasa.session';
 
@@ -21,17 +21,26 @@ export class AuthService {
   readonly isAuthenticated = computed(() => this._session() !== null);
 
   login(request: LoginRequest): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>(`${environment.apiUrl}/auth/login`, request).pipe(
-      tap((response) => {
-        const session: Session = {
-          token: response.accessToken,
-          expiresAt: response.expiresAt,
-          user: response.user,
-        };
-        localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-        this._session.set(session);
-      }),
-    );
+    return this.http
+      .post<LoginResponse>(`${environment.apiUrl}/auth/login`, request)
+      .pipe(tap((response) => this.startSession(response)));
+  }
+
+  /** Crea una cuenta gratuita de particular y deja la sesión iniciada. */
+  register(request: RegisterRequest): Observable<LoginResponse> {
+    return this.http
+      .post<LoginResponse>(`${environment.apiUrl}/auth/register`, request)
+      .pipe(tap((response) => this.startSession(response)));
+  }
+
+  private startSession(response: LoginResponse): void {
+    const session: Session = {
+      token: response.accessToken,
+      expiresAt: response.expiresAt,
+      user: response.user,
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    this._session.set(session);
   }
 
   /** El usuario cierra su sesión a propósito: vuelve a la portada pública. */

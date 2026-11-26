@@ -3,8 +3,21 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { PagedResult } from '../../shared/models/paged-result';
+import { PublicProperty } from '../landing/public-properties.service';
 import { Agency } from '../users/user.models';
-import { CreatePropertyRequest, Property, UpdatePropertyRequest } from './property.models';
+import { AdvancedCriteria, NO_ADVANCED_CRITERIA, appendAdvancedParams } from './property-criteria';
+import { CreatePropertyRequest, OperationType, Property, PropertyStatus, PropertyType, UpdatePropertyRequest } from './property.models';
+
+/** Filtros de la lista del personal: búsqueda de texto, estado, tipo y operación, más los avanzados. Cadena vacía, 
+ull o alse significan «sin filtro». */
+export interface PropertyListFilters extends AdvancedCriteria {
+  search: string;
+  status: PropertyStatus | '';
+  type: PropertyType | '';
+  operation: OperationType | '';
+}
+
+export const NO_LIST_FILTERS: PropertyListFilters = { search: '', status: '', type: '', operation: '', ...NO_ADVANCED_CRITERIA };
 
 @Injectable({ providedIn: 'root' })
 export class PropertiesService {
@@ -12,12 +25,27 @@ export class PropertiesService {
   private readonly propertiesUrl = `${environment.apiUrl}/properties`;
   private readonly agenciesUrl = `${environment.apiUrl}/agencies`;
 
-  getPaged(search: string, page: number, pageSize: number): Observable<PagedResult<Property>> {
+  getPaged(filters: PropertyListFilters, page: number, pageSize: number): Observable<PagedResult<Property>> {
     let params = new HttpParams().set('page', page).set('pageSize', pageSize);
-    if (search.trim()) {
-      params = params.set('search', search.trim());
+    if (filters.search.trim()) {
+      params = params.set('search', filters.search.trim());
     }
-    return this.http.get<PagedResult<Property>>(this.propertiesUrl, { params });
+    if (filters.status) {
+      params = params.set('status', filters.status);
+    }
+    if (filters.type) {
+      params = params.set('type', filters.type);
+    }
+    if (filters.operation) {
+      params = params.set('operation', filters.operation);
+    }
+    return this.http.get<PagedResult<Property>>(this.propertiesUrl, { params: appendAdvancedParams(params, filters) });
+  }
+
+  /** Propiedades publicadas de la inmobiliaria del usuario, con el contenido público (lo que ve un visitante). */
+  getGallery(page: number, pageSize: number): Observable<PagedResult<PublicProperty>> {
+    const params = new HttpParams().set('page', page).set('pageSize', pageSize);
+    return this.http.get<PagedResult<PublicProperty>>(`${this.propertiesUrl}/gallery`, { params });
   }
 
   create(request: CreatePropertyRequest): Observable<Property> {
@@ -38,6 +66,11 @@ export class PropertiesService {
       body.append('removeImageIds', imageId);
     }
     return this.http.post<Property>(`${this.propertiesUrl}/${id}/images`, body);
+  }
+
+  /** Destaca o quita el destacado de una propiedad publicada; usa un lugar del paquete de destacados de la cuenta. */
+  setFeatured(id: string, featured: boolean): Observable<Property> {
+    return this.http.put<Property>(`${this.propertiesUrl}/${id}/featured`, { featured });
   }
 
   delete(id: string): Observable<void> {

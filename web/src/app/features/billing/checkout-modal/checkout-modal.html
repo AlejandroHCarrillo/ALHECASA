@@ -1,0 +1,140 @@
+<app-modal title="Pagar plan" boxClass="max-w-lg" (closed)="cancelled.emit()">
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="space-y-4" autocomplete="off">
+    <div class="alert alert-warning text-sm" role="note" data-testid="simulated-note">
+      <i class="fa-solid fa-flask" aria-hidden="true"></i>
+      <div>
+        <p class="font-semibold">Pasarela de pago simulada</p>
+        <p>No se cobra nada. Usa una tarjeta de prueba:</p>
+        <ul class="mt-1 flex flex-wrap gap-2">
+          @for (card of testCards; track card.number) {
+            <li>
+              <button type="button" class="btn btn-xs btn-outline" data-testid="test-card" (click)="useTestCard(card.number)">
+                {{ card.label }} · {{ card.number }}
+              </button>
+            </li>
+          }
+        </ul>
+      </div>
+    </div>
+
+    @if (error(); as message) {
+      <app-error-alert [message]="message" (dismissed)="error.set(null)" />
+    }
+
+    <section class="rounded-box bg-base-200 p-4 text-sm" aria-label="Resumen del pedido" data-testid="order-summary">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <p class="font-semibold">{{ plan().name }}</p>
+          <p class="text-base-content/70">{{ kindLabels[plan().kind] }} · {{ describeLimit(plan().kind, plan().limit) }}</p>
+          <p class="text-base-content/70">Dura {{ periodSpans[plan().period!] }} desde hoy.</p>
+        </div>
+        <p class="whitespace-nowrap text-right text-lg font-bold" data-testid="order-total">
+          {{ plan().currency }} {{ plan().price | number: '1.2-2' }}
+        </p>
+      </div>
+      @if (replaces(); as current) {
+        <p class="mt-2 text-warning" data-testid="replace-warning">
+          Reemplaza a tu plan actual «{{ current }}».
+          @if (clearsFeatured()) {
+            Tus anuncios destacados dejarán de estarlo y tendrás que elegirlos de nuevo.
+          }
+        </p>
+      } @else if (clearsFeatured()) {
+        <p class="mt-2 text-warning" data-testid="replace-warning">Tus anuncios destacados dejarán de estarlo y tendrás que elegirlos de nuevo.</p>
+      }
+    </section>
+
+    <div class="form-control">
+      <label class="label" for="card-number"><span class="label-text">Número de tarjeta <span class="text-error">*</span></span></label>
+      <input
+        id="card-number"
+        type="text"
+        inputmode="numeric"
+        autocomplete="off"
+        class="input input-bordered w-full"
+        formControlName="number"
+        placeholder="0000 0000 0000 0000"
+        maxlength="23"
+        [class.input-error]="hasError('number')"
+        (input)="formatNumber()"
+      />
+      @if (hasError('number')) {
+        <span class="mt-1 text-sm text-error">
+          {{ form.controls.number.hasError('required') ? 'Captura el número de tarjeta.' : 'El número de tarjeta no es válido.' }}
+        </span>
+      }
+    </div>
+
+    <div class="form-control">
+      <label class="label" for="card-holder"><span class="label-text">Nombre del titular <span class="text-error">*</span></span></label>
+      <input
+        id="card-holder"
+        type="text"
+        autocomplete="off"
+        class="input input-bordered w-full"
+        formControlName="holderName"
+        maxlength="100"
+        [class.input-error]="hasError('holderName')"
+      />
+      @if (hasError('holderName')) {
+        <span class="mt-1 text-sm text-error">Captura el nombre como aparece en la tarjeta.</span>
+      }
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div class="form-control">
+        <label class="label" for="card-expiry"><span class="label-text">Vence (MM/AA) <span class="text-error">*</span></span></label>
+        <input
+          id="card-expiry"
+          type="text"
+          inputmode="numeric"
+          autocomplete="off"
+          class="input input-bordered w-full"
+          formControlName="expiry"
+          placeholder="MM/AA"
+          maxlength="5"
+          [class.input-error]="hasError('expiry')"
+          (input)="formatExpiry()"
+        />
+        @if (hasError('expiry')) {
+          <span class="mt-1 text-sm text-error">
+            {{
+              form.controls.expiry.hasError('expired')
+                ? 'La tarjeta está vencida.'
+                : form.controls.expiry.hasError('required')
+                  ? 'Captura la fecha de vencimiento.'
+                  : 'Usa el formato MM/AA.'
+            }}
+          </span>
+        }
+      </div>
+
+      <div class="form-control">
+        <label class="label" for="card-cvv"><span class="label-text">CVV <span class="text-error">*</span></span></label>
+        <input
+          id="card-cvv"
+          type="password"
+          inputmode="numeric"
+          autocomplete="off"
+          class="input input-bordered w-full"
+          formControlName="cvv"
+          maxlength="4"
+          [class.input-error]="hasError('cvv')"
+        />
+        @if (hasError('cvv')) {
+          <span class="mt-1 text-sm text-error">Son 3 o 4 dígitos.</span>
+        }
+      </div>
+    </div>
+
+    <div class="modal-action">
+      <button type="button" class="btn" [disabled]="submitting()" (click)="cancelled.emit()">Cancelar</button>
+      <button type="submit" class="btn btn-primary" data-testid="pay" [disabled]="submitting()">
+        @if (submitting()) {
+          <span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+        }
+        Pagar {{ plan().currency }} {{ plan().price | number: '1.2-2' }}
+      </button>
+    </div>
+  </form>
+</app-modal>

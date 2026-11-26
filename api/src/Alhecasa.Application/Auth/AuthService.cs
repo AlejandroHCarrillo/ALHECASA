@@ -62,5 +62,5 @@ public sealed class AuthService(
     }
 
     private static CurrentUserDto ToDto(User user) =>
-        new(user.Id, user.FullName, user.Email, user.Role, user.AgencyId, user.Agency?.Name);
+        new(user.Id, user.FullName, user.Email, user.Role, user.AgencyId, user.Agency?.Name, user.Agency?.IsIndividual ?? false);
 }

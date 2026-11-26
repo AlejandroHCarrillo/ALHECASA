@@ -27,6 +27,54 @@ export const CurrencyCode = {
 } as const;
 export type CurrencyCode = (typeof CurrencyCode)[keyof typeof CurrencyCode];
 
+/** Amenidades. Los nombres son los de la API (`Amenity` del backend); cada propiedad tiene cero o más. */
+export const Amenity = {
+  Pool: 'Pool',
+  Gym: 'Gym',
+  Security24h: 'Security24h',
+  Garden: 'Garden',
+  Terrace: 'Terrace',
+  Elevator: 'Elevator',
+  Storage: 'Storage',
+  ServiceRoom: 'ServiceRoom',
+  AirConditioning: 'AirConditioning',
+  CommonAreas: 'CommonAreas',
+  Fireplace: 'Fireplace',
+  Playground: 'Playground',
+} as const;
+export type Amenity = (typeof Amenity)[keyof typeof Amenity];
+
+export const AMENITY_LABELS: Record<Amenity, string> = {
+  Pool: 'Alberca',
+  Gym: 'Gimnasio',
+  Security24h: 'Seguridad 24 h',
+  Garden: 'Jardín',
+  Terrace: 'Terraza',
+  Elevator: 'Elevador',
+  Storage: 'Bodega',
+  ServiceRoom: 'Cuarto de servicio',
+  AirConditioning: 'Aire acondicionado',
+  CommonAreas: 'Áreas comunes',
+  Fireplace: 'Chimenea',
+  Playground: 'Área de juegos',
+};
+
+/** Orden de los resultados. Los nombres son los de la API (`PropertySort`). */
+export const PropertySort = {
+  Recent: 'Recent',
+  PriceAsc: 'PriceAsc',
+  PriceDesc: 'PriceDesc',
+  AreaDesc: 'AreaDesc',
+} as const;
+export type PropertySort = (typeof PropertySort)[keyof typeof PropertySort];
+
+export const SORT_LABELS: Record<PropertySort, string> = {
+  Recent: 'Más recientes',
+  PriceAsc: 'Precio: menor a mayor',
+  PriceDesc: 'Precio: mayor a menor',
+  AreaDesc: 'Mayor superficie',
+};
+
 export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
   House: 'Casa',
   Apartment: 'Departamento',
@@ -66,6 +114,7 @@ export const PROPERTY_LIMITS = {
   maxPrice: 9_999_999_999_999.99,
   maxArea: 99_999_999.99,
   maxRooms: 50,
+  maxParking: 50,
 } as const;
 
 export interface Property {
@@ -88,6 +137,18 @@ export interface Property {
   bathrooms: number | null;
   constructionArea: number | null;
   landArea: number | null;
+  /** Ubicación exacta en el mapa; solo la ve el personal. Van juntas: las dos con valor o las dos nulas. */
+  latitude: number | null;
+  longitude: number | null;
+  /** Cajones de estacionamiento (0 si no tiene). Nulo si no se capturó. */
+  parkingSpaces: number | null;
+  petsAllowed: boolean;
+  furnished: boolean;
+  amenities: Amenity[];
+  /** Si está destacada ahora (el destacado vence solo al terminar el paquete). */
+  isFeatured: boolean;
+  /** Hasta cuándo dura el destacado; nulo si no está destacada. */
+  featuredUntil: string | null;
   /** Identificadores de las imágenes en orden de galería; la primera es la portada. */
   imageIds: string[];
   createdAt: string;
@@ -120,6 +181,12 @@ export interface UpdatePropertyRequest {
   bathrooms: number | null;
   constructionArea: number | null;
   landArea: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  parkingSpaces: number | null;
+  petsAllowed: boolean;
+  furnished: boolean;
+  amenities: Amenity[];
 }
 
 export interface CreatePropertyRequest extends UpdatePropertyRequest {

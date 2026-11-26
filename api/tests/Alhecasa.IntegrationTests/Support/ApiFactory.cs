@@ -15,8 +15,9 @@ using Microsoft.Extensions.Hosting;
 namespace Alhecasa.IntegrationTests.Support;
 
 /// <summary>
-/// SQLite no puede ordenar ni comparar <see cref="DateTimeOffset"/> (lo guarda como texto). Se guarda como entero
-/// solo en las pruebas, para poder ejecutar las mismas consultas que en SQL Server (por ejemplo ORDER BY CreatedAt).
+/// SQLite no puede ordenar ni comparar <see cref="DateTimeOffset"/> (lo guarda como texto) ni decimal. Se guardan como entero
+/// y como double solo en las pruebas, para poder ejecutar las mismas consultas que en SQL Server (por ejemplo ORDER BY CreatedAt
+/// o Price >= x).
 /// </summary>
 internal sealed class SqliteModelCustomizer(ModelCustomizerDependencies dependencies) : RelationalModelCustomizer(dependencies)
 {
@@ -31,8 +32,21 @@ internal sealed class SqliteModelCustomizer(ModelCustomizerDependencies dependen
         {
             property.SetValueConverter(converter);
         }
+
+        var decimalConverter = new DecimalToDoubleConverter();
+        foreach (var property in modelBuilder.Model.GetEntityTypes()
+                     .SelectMany(e => e.GetProperties())
+                     .Where(p => p.ClrType == typeof(decimal) || p.ClrType == typeof(decimal?)))
+        {
+            property.SetValueConverter(property.ClrType == typeof(decimal?)
+                ? new ValueConverter<decimal?, double?>(v => v == null ? null : (double)v.Value, v => v == null ? null : (decimal)v.Value)
+                : decimalConverter);
+        }
     }
 }
+
+/// <summary>Guarda los decimal como double solo en las pruebas (ver <see cref="SqliteModelCustomizer"/>).</summary>
+internal sealed class DecimalToDoubleConverter() : ValueConverter<decimal, double>(v => (double)v, v => (decimal)v);
 
 /// <summary>
 /// Levanta la API real en memoria con una base SQLite efímera (una por instancia).
@@ -57,8 +71,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Testing");
 
         builder.UseSetting("Jwt:SigningKey", "integration-tests-signing-key-0123456789-abcdef");
+        builder.UseSetting("Payments:AllowSimulated", "true");
         builder.UseSetting("Database:MigrateOnStartup", "false");
         builder.UseSetting("Database:SeedOnStartup", "false");
+
+        // Las pruebas comparten la misma IP: se sube el tope del formulario público para que no estorbe entre sí.
+        // PublicInquiriesRateLimitTests lo vuelve a bajar para comprobar el límite real.
+        builder.UseSetting("RateLimiting:Inquiries:PermitLimit", "100000");
+        builder.UseSetting("RateLimiting:Register:PermitLimit", "100000");
 
         builder.ConfigureServices(services =>
         {
@@ -157,6 +177,18 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         return user;
     }
 
+    /// <summary>Agrega una propiedad con todos sus datos (para probar filtros por precio, recámaras, amenidades…).</summary>
+    public async Task<Property> AddPropertyAsync(Guid agencyId, PropertyData data)
+    {
+        var property = new Property(agencyId, data);
+        await WithDbAsync(async db =>
+        {
+            db.Properties.Add(property);
+            await db.SaveChangesAsync();
+        });
+        return property;
+    }
+
     public async Task<Property> AddPropertyAsync(
         Guid agencyId,
         string title = "Casa de prueba",
@@ -164,7 +196,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         PropertyStatus status = PropertyStatus.Draft,
         string? street = null,
         PropertyType type = PropertyType.House,
-        OperationType operation = OperationType.Sale)
+        OperationType operation = OperationType.Sale,
+        decimal? latitude = null,
+        decimal? longitude = null)
     {
         var property = new Property(agencyId, new PropertyData(
             title,
@@ -182,7 +216,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             null,
             null,
             null,
-            null));
+            null,
+            latitude,
+            longitude));
 
         await WithDbAsync(async db =>
         {
@@ -192,6 +228,17 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         return property;
     }
 
+    /// <summary>Agrega una solicitud de informes directamente en la base, como si un visitante ya la hubiera mandado.</summary>
+    public async Task<Inquiry> AddInquiryAsync(Guid agencyId, Guid propertyId, string name = "Ana López", string propertyTitle = "Casa de prueba", string message = "¿Sigue disponible?")
+    {
+        var inquiry = new Inquiry(propertyId, agencyId, propertyTitle, name, "5512345678", $"{Guid.NewGuid():N}@prospecto.test", message);
+        await WithDbAsync(async db =>
+        {
+            db.Inquiries.Add(inquiry);
+            await db.SaveChangesAsync();
+        });
+        return inquiry;
+    }
     /// <summary>Modifica un usuario existente directamente en la base (simula un cambio hecho por otro administrador).</summary>
     public Task ModifyUserAsync(Guid userId, Action<User> change) =>
         WithDbAsync(async db =>

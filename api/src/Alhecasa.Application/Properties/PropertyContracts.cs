@@ -24,9 +24,20 @@ public sealed record PropertyDto(
     int? Bathrooms,
     decimal? ConstructionArea,
     decimal? LandArea,
+    decimal? Latitude,
+    decimal? Longitude,
     IReadOnlyList<Guid> ImageIds,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? UpdatedAt);
+    DateTimeOffset? UpdatedAt,
+    int? ParkingSpaces,
+    bool PetsAllowed,
+    bool Furnished,
+    IReadOnlyList<Amenity> Amenities,
+    bool IsFeatured,
+    DateTimeOffset? FeaturedUntil);
+
+/// <summary>Destacar o quitar el destacado de una propiedad.</summary>
+public sealed record SetFeaturedRequest(bool Featured);
 
 /// <summary>Campos que se capturan al crear o editar una propiedad.</summary>
 public abstract record PropertyRequest
@@ -63,6 +74,21 @@ public abstract record PropertyRequest
 
     public decimal? LandArea { get; init; }
 
+    /// <summary>Ubicación en el mapa. Latitud y longitud se envían juntas o ninguna.</summary>
+    public decimal? Latitude { get; init; }
+
+    public decimal? Longitude { get; init; }
+
+    /// <summary>Cajones de estacionamiento (0 si no tiene). Nulo si no se captura.</summary>
+    public int? ParkingSpaces { get; init; }
+
+    public bool PetsAllowed { get; init; }
+
+    public bool Furnished { get; init; }
+
+    /// <summary>Amenidades por nombre (`Pool`, `Gym`…). Sin repetidos; vacío o nulo si no tiene.</summary>
+    public IReadOnlyList<Amenity>? Amenities { get; init; }
+
     internal PropertyData ToData() => new(
         Title.Trim(),
         Clean(Description),
@@ -79,7 +105,13 @@ public abstract record PropertyRequest
         Bedrooms,
         Bathrooms,
         ConstructionArea,
-        LandArea);
+        LandArea,
+        Latitude,
+        Longitude,
+        ParkingSpaces,
+        PetsAllowed,
+        Furnished,
+        AmenityFlags.Combine(Amenities));
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
@@ -96,19 +128,50 @@ public sealed record CreatePropertyRequest : PropertyRequest
 /// <summary>Una propiedad no cambia de inmobiliaria: la actualización no recibe <c>AgencyId</c>.</summary>
 public sealed record UpdatePropertyRequest : PropertyRequest;
 
-public sealed record PropertyListQuery(string? Search = null, int Page = 1, int PageSize = 10)
+/// <summary>
+/// Búsqueda en la lista de propiedades del personal. Además de la búsqueda de texto y del estado, acepta los mismos
+/// criterios que el catálogo público (<see cref="IPropertyCriteria"/>).
+/// </summary>
+public sealed record PropertyListQuery(
+    string? Search = null,
+    int Page = 1,
+    int PageSize = 10,
+    PropertyStatus? Status = null,
+    PropertyType? Type = null,
+    OperationType? Operation = null,
+    decimal? MinPrice = null,
+    decimal? MaxPrice = null,
+    CurrencyCode? Currency = null,
+    int? MinBedrooms = null,
+    int? MinBathrooms = null,
+    int? MinParking = null,
+    decimal? MinArea = null,
+    decimal? MaxArea = null,
+    bool? PetsAllowed = null,
+    bool? Furnished = null,
+    IReadOnlyList<Amenity>? Amenities = null,
+    PropertySort Sort = PropertySort.Recent) : IPropertyCriteria
 {
     public const int MaxPageSize = 100;
 
-    /// <summary>Devuelve una copia con paginación acotada a valores seguros.</summary>
-    public PropertyListQuery Normalize() => this with
+    /// <summary>Devuelve una copia con paginación acotada a valores seguros. Un criterio inválido lanza <see cref="Domain.Common.DomainException"/> (400).</summary>
+    public PropertyListQuery Normalize()
     {
-        Search = string.IsNullOrWhiteSpace(Search) ? null : Search.Trim(),
-        Page = Math.Max(1, Page),
-        PageSize = Math.Clamp(PageSize, 1, MaxPageSize)
-    };
-}
+        PropertyCriteriaRules.Validate(this);
+        if (Status is { } status && !Enum.IsDefined(status))
+        {
+            throw new Domain.Common.DomainException("The status is not valid.");
+        }
 
+        return this with
+        {
+            Search = string.IsNullOrWhiteSpace(Search) ? null : Search.Trim(),
+            Page = Math.Max(1, Page),
+            PageSize = Math.Clamp(PageSize, 1, MaxPageSize),
+            Amenities = PropertyCriteriaRules.NormalizeAmenities(Amenities)
+        };
+    }
+}
 public abstract class PropertyRequestValidator<T> : AbstractValidator<T>
     where T : PropertyRequest
 {
@@ -134,6 +197,12 @@ public abstract class PropertyRequestValidator<T> : AbstractValidator<T>
         RuleFor(x => x.Bathrooms).InclusiveBetween(0, 50).When(x => x.Bathrooms is not null);
         RuleFor(x => x.ConstructionArea).InclusiveBetween(0, MaxArea).When(x => x.ConstructionArea is not null);
         RuleFor(x => x.LandArea).InclusiveBetween(0, MaxArea).When(x => x.LandArea is not null);
+        RuleFor(x => x.ParkingSpaces).InclusiveBetween(0, 50).When(x => x.ParkingSpaces is not null);
+        RuleForEach(x => x.Amenities).Must(AmenityFlags.IsSingle).WithMessage("An amenity is not valid.");
+        RuleFor(x => x.Latitude).InclusiveBetween(-90m, 90m).When(x => x.Latitude is not null);
+        RuleFor(x => x.Longitude).InclusiveBetween(-180m, 180m).When(x => x.Longitude is not null);
+        RuleFor(x => x.Longitude).NotNull().WithMessage("The longitude is required when the latitude is sent.").When(x => x.Latitude is not null);
+        RuleFor(x => x.Latitude).NotNull().WithMessage("The latitude is required when the longitude is sent.").When(x => x.Longitude is not null);
     }
 }
 

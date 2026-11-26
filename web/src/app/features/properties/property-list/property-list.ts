@@ -1,40 +1,51 @@
-import { DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { DatePipe, DecimalPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { Subject, catchError, debounceTime, distinctUntilChanged, of, switchMap, tap } from 'rxjs';
+import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { Subject, catchError, debounceTime, distinctUntilChanged, merge, of, switchMap, tap } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { UserRole } from '../../../core/models/user-role';
 import { ErrorAlert } from '../../../shared/components/error-alert/error-alert';
 import { Modal } from '../../../shared/components/modal/modal';
+import { AdvancedFilters } from '../../../shared/components/advanced-filters/advanced-filters';
 import { Paginator } from '../../../shared/components/paginator/paginator';
 import { PagedResult } from '../../../shared/models/paged-result';
 import { ToastService } from '../../../shared/services/toast.service';
 import { resolveApiError } from '../../../shared/utils/api-error';
 import { Agency } from '../../users/user.models';
-import { PropertiesService } from '../properties.service';
+import { AccountBilling, describeUsage, usagePercent } from '../../billing/billing.models';
+import { BillingService } from '../../billing/billing.service';
+import { NO_LIST_FILTERS, PropertiesService, PropertyListFilters } from '../properties.service';
+import { NO_ADVANCED_CRITERIA, countAdvanced, createAdvancedCriteriaForm, normalizeAdvanced } from '../property-criteria';
 import { PropertyDetailModal } from '../property-detail-modal/property-detail-modal';
 import { PropertyFormModal } from '../property-form-modal/property-form-modal';
 import {
   OPERATION_LABELS,
+  OperationType,
   PROPERTY_STATUS_BADGES,
   PROPERTY_STATUS_LABELS,
   PROPERTY_TYPE_LABELS,
   Property,
+  PropertySort,
+  PropertyStatus,
+  PropertyType,
 } from '../property.models';
 
 const PAGE_SIZE = 10;
 
 @Component({
   selector: 'app-property-list',
-  imports: [ReactiveFormsModule, DecimalPipe, ErrorAlert, Modal, Paginator, PropertyFormModal, PropertyDetailModal],
+  imports: [ReactiveFormsModule, RouterLink, DatePipe, DecimalPipe, AdvancedFilters, ErrorAlert, Modal, Paginator, PropertyFormModal, PropertyDetailModal],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './property-list.html',
 })
 export class PropertyList implements OnInit {
   private readonly propertiesService = inject(PropertiesService);
   private readonly toast = inject(ToastService);
+  private readonly billingService = inject(BillingService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute, { optional: true });
   protected readonly auth = inject(AuthService);
 
   protected readonly pageSize = PAGE_SIZE;
@@ -42,12 +53,40 @@ export class PropertyList implements OnInit {
   protected readonly operationLabels = OPERATION_LABELS;
   protected readonly statusLabels = PROPERTY_STATUS_LABELS;
   protected readonly statusBadges = PROPERTY_STATUS_BADGES;
+  protected readonly published = PropertyStatus.Published;
+  protected readonly describeUsage = describeUsage;
+  protected readonly usagePercent = usagePercent;
 
   protected readonly searchControl = new FormControl('', { nonNullable: true });
+
+  protected readonly statuses = Object.values(PropertyStatus);
+  protected readonly types = Object.values(PropertyType);
+  protected readonly operations = Object.values(OperationType);
+
+  /** Estado, tipo y operación se aplican al elegirlos; los filtros avanzados, al pulsar «Aplicar filtros». */
+  protected readonly filterForm = new FormGroup({
+    status: new FormControl<PropertyStatus | ''>('', { nonNullable: true }),
+    type: new FormControl<PropertyType | ''>('', { nonNullable: true }),
+    operation: new FormControl<OperationType | ''>('', { nonNullable: true }),
+    advanced: createAdvancedCriteriaForm(),
+  });
+
+  protected readonly advancedOpen = signal(false);
+  private readonly applied = signal<PropertyListFilters>(NO_LIST_FILTERS);
+  protected readonly advancedCount = computed(() => countAdvanced(this.applied()));
+  /** Hay algo que quitar: un filtro, un orden distinto del normal o texto de búsqueda. */
+  protected readonly canClear = computed(() => {
+    const f = this.applied();
+    return f.status !== '' || f.type !== '' || f.operation !== '' || f.sort !== PropertySort.Recent || countAdvanced(f) > 0;
+  });
   protected readonly result = signal<PagedResult<Property> | null>(null);
   protected readonly loading = signal(false);
   protected readonly listError = signal<string | null>(null);
   protected readonly agencies = signal<Agency[]>([]);
+  /** Plan de la cuenta y lo que lleva usado; no aplica al administrador de plataforma, que no tiene cuenta propia. */
+  protected readonly billing = signal<AccountBilling | null>(null);
+  /** Propiedad cuyo destacado se está cambiando. */
+  protected readonly featuringId = signal<string | null>(null);
 
   // Estado de los modales
   protected readonly showForm = signal(false);
@@ -70,7 +109,7 @@ export class PropertyList implements OnInit {
           this.listError.set(null);
         }),
         switchMap(() =>
-          this.propertiesService.getPaged(this.searchControl.value, this.page, PAGE_SIZE).pipe(
+          this.propertiesService.getPaged({ ...this.applied(), search: this.searchControl.value }, this.page, PAGE_SIZE).pipe(
             catchError((err: unknown) => {
               this.listError.set(resolveApiError(err));
               return of(null);
@@ -93,15 +132,38 @@ export class PropertyList implements OnInit {
         this.page = 1;
         this.reload$.next();
       });
+
+    // Estado, tipo y operación se aplican al elegirlos, con los filtros avanzados que ya estaban aplicados.
+    const { status, type, operation } = this.filterForm.controls;
+    merge(status.valueChanges, type.valueChanges, operation.valueChanges)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.applied.update((a) => ({ ...a, status: status.value, type: type.value, operation: operation.value }));
+        this.page = 1;
+        this.reload$.next();
+      });
   }
 
   /** El administrador de plataforma ve todas las inmobiliarias, así que la lista muestra a cuál pertenece cada propiedad. */
+  /** Solo el administrador de la cuenta compra planes. */
+  protected get canBuyPlans(): boolean {
+    return this.auth.hasRole(UserRole.AgencyAdmin);
+  }
+
   protected get isPlatformAdmin(): boolean {
     return this.auth.hasRole(UserRole.PlatformAdmin);
   }
 
   ngOnInit(): void {
+    // Las tarjetas de la página de inicio abren la lista ya filtrada (/propiedades?status=Published).
+    const initial = this.route?.snapshot.queryParamMap.get('status');
+    if (this.statuses.some((s) => s === initial)) {
+      this.filterForm.controls.status.setValue(initial as PropertyStatus, { emitEvent: false });
+      this.applied.update((a) => ({ ...a, status: initial as PropertyStatus }));
+    }
+
     this.reload$.next();
+    this.loadBilling();
 
     // Solo el administrador de plataforma elige inmobiliaria; la lista alimenta el formulario.
     if (this.isPlatformAdmin) {
@@ -110,6 +172,56 @@ export class PropertyList implements OnInit {
         error: (err: unknown) => this.listError.set(resolveApiError(err)),
       });
     }
+  }
+
+  /** El resumen del plan es informativo: si falla, la lista sigue funcionando sin él. */
+  private loadBilling(): void {
+    if (this.isPlatformAdmin) {
+      return;
+    }
+
+    this.billingService.getMine().subscribe({
+      next: (billing) => this.billing.set(billing),
+      error: () => this.billing.set(null),
+    });
+  }
+
+  /** Destaca la propiedad con un lugar del paquete de la cuenta, o se lo quita. */
+  protected toggleFeatured(property: Property): void {
+    this.featuringId.set(property.id);
+    this.listError.set(null);
+
+    this.propertiesService.setFeatured(property.id, !property.isFeatured).subscribe({
+      next: (updated) => {
+        this.featuringId.set(null);
+        this.toast.success(updated.isFeatured ? 'Anuncio destacado.' : 'Se quitó el destacado.');
+        this.loadBilling();
+        this.reload$.next();
+      },
+      error: (err: unknown) => {
+        this.featuringId.set(null);
+        this.listError.set(resolveApiError(err));
+      },
+    });
+  }
+
+  protected toggleAdvanced(): void {
+    this.advancedOpen.update((open) => !open);
+  }
+
+  protected applyAdvanced(): void {
+    this.applied.update((a) => ({ ...a, ...normalizeAdvanced(this.filterForm.controls.advanced.getRawValue()) }));
+    this.page = 1;
+    this.reload$.next();
+  }
+
+  protected clearFilters(): void {
+    // Sin emitir eventos: restablecer los selectores dispararía una consulta por cada uno.
+    this.filterForm.reset({ status: '', type: '', operation: '' }, { emitEvent: false });
+    this.filterForm.controls.advanced.reset(NO_ADVANCED_CRITERIA, { emitEvent: false });
+    this.applied.update((a) => ({ ...a, ...NO_LIST_FILTERS, search: a.search }));
+    this.page = 1;
+    this.reload$.next();
   }
 
   protected goToPage(page: number): void {
@@ -154,6 +266,7 @@ export class PropertyList implements OnInit {
     if (wasCreate) {
       this.page = 1;
     }
+    this.loadBilling();
     this.reload$.next();
   }
 
@@ -187,6 +300,7 @@ export class PropertyList implements OnInit {
         if (this.result()?.items.length === 1 && this.page > 1) {
           this.page--;
         }
+        this.loadBilling();
         this.reload$.next();
       },
       error: (err: unknown) => {

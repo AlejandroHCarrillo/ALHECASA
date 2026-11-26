@@ -9,6 +9,7 @@ using Alhecasa.Api.Services;
 using Alhecasa.Application;
 using Alhecasa.Application.Abstractions;
 using Alhecasa.Application.Auth;
+using Alhecasa.Application.Common;
 using Alhecasa.Infrastructure;
 using Alhecasa.Infrastructure.Identity;
 using Alhecasa.Infrastructure.Persistence.Seeding;
@@ -30,7 +31,8 @@ builder.Services
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
-builder.Services.AddApplication();
+builder.Services.AddApplication(new AccountLimits(
+    builder.Configuration.GetValue("AccountLimits:IndividualMaxProperties", new AccountLimits().IndividualMaxProperties)));
 builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddHttpContextAccessor();
@@ -91,6 +93,17 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0
         }));
 
+    // Altas de cuentas gratuitas: pocas por IP (cada una crea una inmobiliaria y un usuario, y hay que frenar el alta masiva).
+    // RateLimiting:Register:PermitLimit, por defecto 5 por hora.
+    options.AddPolicy("register", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        httpContext.Connection.RemoteIpAddress?.ToString() ?? IPAddress.None.ToString(),
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = httpContext.RequestServices.GetRequiredService<IConfiguration>().GetValue("RateLimiting:Register:PermitLimit", 5),
+            Window = TimeSpan.FromHours(1),
+            QueueLimit = 0
+        }));
+
     // Catálogo público sin sesión: límite generoso por IP para evitar que lo rastreen en masa.
     options.AddPolicy("public", httpContext => RateLimitPartition.GetFixedWindowLimiter(
         httpContext.Connection.RemoteIpAddress?.ToString() ?? IPAddress.None.ToString(),
@@ -98,6 +111,17 @@ builder.Services.AddRateLimiter(options =>
         {
             PermitLimit = 120,
             Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
+
+    // Solicitudes de informes sin sesión: pocas por IP, para que no se use el formulario como buzón de spam.
+    // El tope sale de la configuración (RateLimiting:Inquiries:PermitLimit, por defecto 10 cada 10 minutos).
+    options.AddPolicy("inquiries", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        httpContext.Connection.RemoteIpAddress?.ToString() ?? IPAddress.None.ToString(),
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = httpContext.RequestServices.GetRequiredService<IConfiguration>().GetValue("RateLimiting:Inquiries:PermitLimit", 10),
+            Window = TimeSpan.FromMinutes(10),
             QueueLimit = 0
         }));
 
@@ -118,6 +142,14 @@ builder.Services.AddHealthChecks();
 // --- Pipeline --------------------------------------------------------------------------------
 
 var app = builder.Build();
+
+// La pasarela es una simulación: aprueba cualquier tarjeta de prueba sin cobrar, así que fuera de Desarrollo cualquier
+// administrador podría contratar planes gratis. Hay que pedir explícitamente que se ejecute así.
+if (!app.Environment.IsDevelopment() && !app.Configuration.GetValue<bool>("Payments:AllowSimulated"))
+{
+    throw new InvalidOperationException(
+        "The payment gateway is simulated and would grant plans without charging. Integrate the real gateway, or set Payments:AllowSimulated=true to run the simulation outside Development.");
+}
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();

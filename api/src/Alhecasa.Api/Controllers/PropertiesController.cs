@@ -14,11 +14,22 @@ public sealed class PropertiesController(IPropertyService propertyService) : Con
     // 10 imágenes de 5 MB más el sobrante del formato multipart.
     private const long MaxRequestBytes = (Alhecasa.Domain.Entities.Property.MaxImages * PropertyImageRules.MaxBytes) + (1024 * 1024);
 
-    /// <summary>Lista el inventario de propiedades con búsqueda y paginación.</summary>
+    /// <summary>Lista el inventario de propiedades con búsqueda, filtros (estado, tipo, operación, precio, recámaras…), orden y paginación.</summary>
     [HttpGet]
     [ProducesResponseType<PagedResult<PropertyDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<PagedResult<PropertyDto>>> GetPaged([FromQuery] PropertyListQuery query, CancellationToken cancellationToken) =>
         Ok(await propertyService.GetPagedAsync(query, cancellationToken));
+
+    /// <summary>
+    /// Galería de la inmobiliaria: sus propiedades publicadas tal como las ve un visitante (mismos datos públicos, mismo orden).
+    /// Solo para personal de una inmobiliaria.
+    /// </summary>
+    [HttpGet("gallery")]
+    [Authorize(Roles = RoleNames.AgencyStaff)]
+    [ProducesResponseType<PagedResult<PublicPropertyDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<PagedResult<PublicPropertyDto>>> GetGallery([FromQuery] PublicPropertyQuery query, CancellationToken cancellationToken = default) =>
+        Ok(await propertyService.GetGalleryAsync(query, cancellationToken));
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType<PropertyDto>(StatusCodes.Status200OK)]
@@ -42,6 +53,18 @@ public sealed class PropertiesController(IPropertyService propertyService) : Con
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PropertyDto>> Update(Guid id, UpdatePropertyRequest request, CancellationToken cancellationToken) =>
         Ok(await propertyService.UpdateAsync(id, request, cancellationToken));
+
+    /// <summary>
+    /// Destaca la propiedad o le quita el destacado. Destacar exige que esté publicada y que la cuenta tenga un paquete de
+    /// destacados vigente con lugar libre (<c>422</c> si no). El destacado dura hasta que vence el paquete.
+    /// </summary>
+    [HttpPut("{id:guid}/featured")]
+    [ProducesResponseType<PropertyDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<PropertyDto>> SetFeatured(Guid id, SetFeaturedRequest request, CancellationToken cancellationToken) =>
+        Ok(await propertyService.SetFeaturedAsync(id, request, cancellationToken));
 
     /// <summary>
     /// Cambia la galería de la propiedad en una sola operación (multipart/form-data): <c>files</c> trae las imágenes nuevas

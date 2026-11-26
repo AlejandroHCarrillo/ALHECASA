@@ -13,7 +13,7 @@ namespace Alhecasa.Api.Controllers;
 [EnableRateLimiting("public")]
 public sealed class PublicPropertiesController(IPublicPropertyService publicProperties) : ControllerBase
 {
-    /// <summary>Lista las propiedades publicadas, filtradas por operación, tipo y ubicación, con paginación.</summary>
+    /// <summary>Lista las propiedades publicadas, con filtros (operación, tipo, ubicación, precio, recámaras, baños, superficie, estacionamientos, mascotas, amueblado y amenidades), orden y paginación.</summary>
     [HttpGet]
     [ProducesResponseType<PagedResult<PublicPropertyDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]

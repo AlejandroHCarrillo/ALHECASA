@@ -1,0 +1,124 @@
+<app-modal title="Solicitud de informes" (closed)="closed.emit()">
+  @let item = inquiry();
+  <div class="space-y-5">
+    @if (error(); as message) {
+      <app-error-alert [message]="message" (dismissed)="error.set(null)" />
+    }
+
+    <dl class="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+      <div>
+        <dt class="text-xs uppercase text-base-content/60">Prospecto</dt>
+        <dd class="font-medium">{{ item.name }}</dd>
+      </div>
+      <div>
+        <dt class="text-xs uppercase text-base-content/60">Recibida</dt>
+        <dd>{{ item.createdAt | date: 'dd/MM/yyyy HH:mm' }}</dd>
+      </div>
+      <div>
+        <dt class="text-xs uppercase text-base-content/60">Teléfono</dt>
+        <dd><a class="link" [href]="'tel:' + item.phone" data-testid="phone-link">{{ item.phone }}</a></dd>
+      </div>
+      <div>
+        <dt class="text-xs uppercase text-base-content/60">Correo</dt>
+        <dd class="break-all"><a class="link" [href]="'mailto:' + item.email" data-testid="email-link">{{ item.email }}</a></dd>
+      </div>
+      <div class="sm:col-span-2">
+        <dt class="text-xs uppercase text-base-content/60">Propiedad</dt>
+        <dd>
+          <a class="link" [routerLink]="['/publicaciones', item.propertyId]" target="_blank">{{ item.propertyTitle }}</a>
+        </dd>
+      </div>
+    </dl>
+
+    <section aria-label="Pregunta del prospecto">
+      <h4 class="mb-1 text-xs uppercase text-base-content/60">Pregunta</h4>
+      <p class="whitespace-pre-line rounded-box bg-base-200 p-3" data-testid="message">{{ item.message }}</p>
+    </section>
+
+    <section class="space-y-2" aria-label="Seguimiento">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h4 class="text-xs uppercase text-base-content/60">Seguimiento</h4>
+        <label class="flex items-center gap-2 text-sm" for="inquiry-status">
+          Estado
+          <select
+            id="inquiry-status"
+            class="select select-bordered select-sm"
+            [disabled]="saving()"
+            [value]="item.status"
+            (change)="changeStatus($event)"
+          >
+            @for (status of statuses; track status) {
+              <option [value]="status" [selected]="status === item.status">{{ statusLabels[status] }}</option>
+            }
+          </select>
+        </label>
+      </div>
+
+      @if (item.followUps.length === 0) {
+        <p class="text-sm text-base-content/60" data-testid="no-follow-ups">Todavía no hay respuestas ni notas.</p>
+      } @else {
+        <ol class="space-y-2" data-testid="follow-ups">
+          @for (followUp of item.followUps; track followUp.id) {
+            <li
+              class="rounded-box border p-3"
+              [class]="followUp.kind === 'Reply' ? 'border-primary/30 bg-primary/5' : 'border-base-300 bg-base-200'"
+            >
+              <div class="mb-1 flex flex-wrap items-center gap-2 text-xs text-base-content/70">
+                <span class="badge badge-sm" [class]="followUp.kind === 'Reply' ? 'badge-primary' : 'badge-neutral'">
+                  {{ kindLabels[followUp.kind] }}
+                </span>
+                <span>{{ followUp.authorName }} · {{ followUp.createdAt | date: 'dd/MM/yyyy HH:mm' }}</span>
+              </div>
+              <p class="whitespace-pre-line">{{ followUp.text }}</p>
+            </li>
+          }
+        </ol>
+      }
+    </section>
+
+    <form [formGroup]="form" (ngSubmit)="addFollowUp()" novalidate class="space-y-3 border-t border-base-200 pt-4">
+      <fieldset class="flex flex-wrap gap-4">
+        <legend class="sr-only">Tipo de registro</legend>
+        @for (kind of kinds; track kind) {
+          <label class="label cursor-pointer gap-2">
+            <input type="radio" class="radio radio-primary radio-sm" formControlName="kind" [value]="kind" />
+            <span class="label-text">{{ kindLabels[kind] }}</span>
+          </label>
+        }
+      </fieldset>
+
+      <div class="form-control">
+        <label class="sr-only" for="inquiry-text">Texto</label>
+        <textarea
+          id="inquiry-text"
+          rows="3"
+          class="textarea textarea-bordered w-full"
+          formControlName="text"
+          [attr.maxlength]="limits.text"
+          [class.textarea-error]="hasTextError()"
+          [placeholder]="form.controls.kind.value === 'Reply' ? 'Escribe lo que le respondiste al prospecto' : 'Nota interna (el prospecto no la ve)'"
+        ></textarea>
+        @if (hasTextError()) {
+          <span class="mt-1 text-sm text-error">Escribe el texto.</span>
+        }
+      </div>
+
+      @if (form.controls.kind.value === 'Reply') {
+        <p class="text-xs text-base-content/60">
+          El sistema no envía mensajes: contacta al prospecto por teléfono o correo y deja aquí constancia de tu respuesta.
+          <a class="link" [href]="mailtoReply()" data-testid="mailto-reply">Redactar en mi correo</a>
+        </p>
+      }
+
+      <div class="modal-action mt-2">
+        <button type="button" class="btn" (click)="closed.emit()">Cerrar</button>
+        <button type="submit" class="btn btn-primary" [disabled]="saving()">
+          @if (saving()) {
+            <span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+          }
+          Guardar
+        </button>
+      </div>
+    </form>
+  </div>
+</app-modal>
