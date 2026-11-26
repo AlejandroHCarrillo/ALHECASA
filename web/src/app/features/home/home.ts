@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@ang
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { USER_ROLE_LABELS, UserRole } from '../../core/models/user-role';
+import { AgencyProfileCard } from '../agency-profile/agency-profile-card/agency-profile-card';
 import { AccountBilling } from '../billing/billing.models';
 import { BillingService } from '../billing/billing.service';
 import { PlanSummary } from '../billing/plan-summary/plan-summary';
@@ -11,7 +12,7 @@ import { DashboardService } from './dashboard.service';
 
 @Component({
   selector: 'app-home',
-  imports: [RouterLink, PlanSummary, DashboardStats],
+  imports: [RouterLink, PlanSummary, DashboardStats, AgencyProfileCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="space-y-6">
@@ -47,6 +48,10 @@ import { DashboardService } from './dashboard.service';
         </div>
       </div>
 
+      @if (canEditAgency) {
+        <app-agency-profile-card />
+      }
+
       @if (dashboard(); as summary) {
         <app-dashboard-stats [dashboard]="summary" />
       }
@@ -80,6 +85,11 @@ export class Home implements OnInit {
   /** Solo el administrador de la inmobiliaria compra; el resto de su personal solo consulta. */
   protected get canBuyPlans(): boolean {
     return this.auth.hasRole(UserRole.AgencyAdmin);
+  }
+
+  /** Solo el administrador de una inmobiliaria edita su información; un particular no tiene página pública. */
+  protected get canEditAgency(): boolean {
+    return this.auth.hasRole(UserRole.AgencyAdmin) && !this.auth.user()?.isIndividual;
   }
 
   ngOnInit(): void {

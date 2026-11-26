@@ -1,0 +1,161 @@
+<app-modal title="Información de la inmobiliaria" boxClass="max-w-3xl" (closed)="cancelled.emit()">
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="space-y-5">
+    <p class="text-sm text-base-content/70">
+      Esta información se muestra en la página pública de tu inmobiliaria, incluidos el correo, el teléfono y la dirección que captures.
+    </p>
+
+    @if (error(); as message) {
+      <app-error-alert [message]="message" (dismissed)="error.set(null)" />
+    }
+
+    <!-- Logotipo -->
+    <fieldset class="space-y-2" [disabled]="submitting()">
+      <legend class="mb-1 text-sm font-medium">Logotipo</legend>
+      <div class="flex flex-wrap items-center gap-4">
+        <div class="flex h-24 w-24 items-center justify-center overflow-hidden rounded-box border border-base-300 bg-base-200" data-testid="logo-preview">
+          @if (currentLogo(); as src) {
+            <img [src]="src" alt="Logotipo de la inmobiliaria" class="h-full w-full object-contain" />
+          } @else {
+            <i class="fa-solid fa-building text-3xl text-base-content/40" aria-hidden="true"></i>
+          }
+        </div>
+        <div class="min-w-0 flex-1 space-y-2">
+          <input
+            id="agency-logo"
+            type="file"
+            class="file-input file-input-bordered w-full"
+            [attr.accept]="acceptTypes"
+            aria-describedby="agency-logo-help"
+            data-testid="logo-input"
+            (change)="onLogoSelected($event)"
+          />
+          <p id="agency-logo-help" class="text-xs text-base-content/60">JPG, PNG o WebP de hasta 5 MB.</p>
+          @if (currentLogo()) {
+            <button type="button" class="btn btn-ghost btn-sm" data-testid="logo-remove" (click)="discardLogo()">
+              <i class="fa-solid fa-trash" aria-hidden="true"></i>
+              Quitar logotipo
+            </button>
+          }
+          @if (logoProblem(); as problem) {
+            <p class="text-sm text-error" data-testid="logo-problem">{{ problem }}</p>
+          }
+        </div>
+      </div>
+    </fieldset>
+
+    <!-- Datos generales -->
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="form-control min-w-0 sm:col-span-2">
+        <label class="mb-1 block text-sm font-medium leading-snug" for="agency-name">Nombre <span class="text-error">*</span></label>
+        <input id="agency-name" type="text" class="input input-bordered w-full" formControlName="name" autocomplete="organization"
+          [attr.maxlength]="limits.name" [class.input-error]="hasError('name')" />
+        @if (hasError('name')) {
+          <span class="mt-1 text-sm text-error">El nombre es obligatorio.</span>
+        }
+      </div>
+
+      <div class="form-control min-w-0">
+        <label class="mb-1 block text-sm font-medium leading-snug" for="agency-email">Correo de contacto <span class="text-error">*</span></label>
+        <input id="agency-email" type="email" class="input input-bordered w-full" formControlName="email" autocomplete="email"
+          [attr.maxlength]="limits.email" [class.input-error]="hasError('email')" />
+        @if (hasError('email')) {
+          <span class="mt-1 text-sm text-error">Captura un correo válido.</span>
+        }
+      </div>
+
+      <div class="form-control min-w-0">
+        <label class="mb-1 block text-sm font-medium leading-snug" for="agency-phone">Teléfono</label>
+        <input id="agency-phone" type="tel" class="input input-bordered w-full" formControlName="phone" autocomplete="tel"
+          [attr.maxlength]="limits.phone" [class.input-error]="hasError('phone')" />
+        @if (hasError('phone')) {
+          <span class="mt-1 text-sm text-error">Captura un teléfono válido (de 7 a 15 dígitos).</span>
+        }
+      </div>
+
+      <div class="form-control min-w-0 sm:col-span-2">
+        <label class="mb-1 block text-sm font-medium leading-snug" for="agency-description">Descripción</label>
+        <textarea id="agency-description" rows="4" class="textarea textarea-bordered w-full" formControlName="description"
+          placeholder="Cuenta quiénes son, en qué zonas trabajan y qué los distingue."
+          [attr.maxlength]="limits.description" [class.textarea-error]="hasError('description')"></textarea>
+        <span class="mt-1 text-xs text-base-content/60">Máximo {{ limits.description }} caracteres.</span>
+      </div>
+
+      <div class="form-control min-w-0 sm:col-span-2">
+        <label class="mb-1 block text-sm font-medium leading-snug" for="agency-hours">Horario de atención</label>
+        <input id="agency-hours" type="text" class="input input-bordered w-full" formControlName="openingHours"
+          placeholder="Lunes a viernes de 9:00 a 18:00, sábados de 10:00 a 14:00"
+          [attr.maxlength]="limits.openingHours" [class.input-error]="hasError('openingHours')" />
+      </div>
+    </div>
+
+    <!-- Enlaces -->
+    <fieldset class="space-y-3">
+      <legend class="mb-1 text-sm font-semibold">Sitio web y redes sociales</legend>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div class="form-control min-w-0 sm:col-span-2">
+          <label class="mb-1 block text-sm font-medium leading-snug" for="agency-website">Sitio web</label>
+          <input id="agency-website" type="url" class="input input-bordered w-full" formControlName="website" placeholder="https://www.minmobiliaria.com"
+            [attr.maxlength]="limits.url" [class.input-error]="hasError('website')" />
+          @if (hasError('website')) {
+            <span class="mt-1 text-sm text-error">Escribe una dirección que empiece con http:// o https://.</span>
+          }
+        </div>
+        <div class="form-control min-w-0">
+          <label class="mb-1 block text-sm font-medium leading-snug" for="agency-facebook">Facebook</label>
+          <input id="agency-facebook" type="url" class="input input-bordered w-full" formControlName="facebookUrl" placeholder="https://facebook.com/..."
+            [attr.maxlength]="limits.url" [class.input-error]="hasError('facebookUrl')" />
+          @if (hasError('facebookUrl')) {
+            <span class="mt-1 text-sm text-error">Escribe una dirección que empiece con http:// o https://.</span>
+          }
+        </div>
+        <div class="form-control min-w-0">
+          <label class="mb-1 block text-sm font-medium leading-snug" for="agency-instagram">Instagram</label>
+          <input id="agency-instagram" type="url" class="input input-bordered w-full" formControlName="instagramUrl" placeholder="https://instagram.com/..."
+            [attr.maxlength]="limits.url" [class.input-error]="hasError('instagramUrl')" />
+          @if (hasError('instagramUrl')) {
+            <span class="mt-1 text-sm text-error">Escribe una dirección que empiece con http:// o https://.</span>
+          }
+        </div>
+      </div>
+    </fieldset>
+
+    <!-- Dirección -->
+    <fieldset class="space-y-3">
+      <legend class="mb-1 text-sm font-semibold">Dirección de la oficina</legend>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-6">
+        <div class="form-control min-w-0 sm:col-span-6">
+          <label class="mb-1 block text-sm font-medium leading-snug" for="agency-street">Calle y número</label>
+          <input id="agency-street" type="text" class="input input-bordered w-full" formControlName="street" autocomplete="street-address"
+            [attr.maxlength]="limits.street" />
+        </div>
+        <div class="form-control min-w-0 sm:col-span-2">
+          <label class="mb-1 block text-sm font-medium leading-snug" for="agency-city">Ciudad</label>
+          <input id="agency-city" type="text" class="input input-bordered w-full" formControlName="city" autocomplete="address-level2"
+            [attr.maxlength]="limits.city" />
+        </div>
+        <div class="form-control min-w-0 sm:col-span-2">
+          <label class="mb-1 block text-sm font-medium leading-snug" for="agency-state">Estado</label>
+          <input id="agency-state" type="text" class="input input-bordered w-full" formControlName="state" autocomplete="address-level1"
+            [attr.maxlength]="limits.state" />
+        </div>
+        <div class="form-control min-w-0 sm:col-span-2">
+          <label class="mb-1 block text-sm font-medium leading-snug" for="agency-postal">Código postal</label>
+          <input id="agency-postal" type="text" inputmode="numeric" class="input input-bordered w-full" formControlName="postalCode" autocomplete="postal-code"
+            [attr.maxlength]="limits.postalCode" />
+        </div>
+      </div>
+    </fieldset>
+
+    <app-privacy-notice action="guardar" />
+
+    <div class="modal-action">
+      <button type="button" class="btn" [disabled]="submitting()" (click)="cancelled.emit()">Cancelar</button>
+      <button type="submit" class="btn btn-primary" data-testid="save" [disabled]="submitting()">
+        @if (submitting()) {
+          <span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+        }
+        Guardar
+      </button>
+    </div>
+  </form>
+</app-modal>

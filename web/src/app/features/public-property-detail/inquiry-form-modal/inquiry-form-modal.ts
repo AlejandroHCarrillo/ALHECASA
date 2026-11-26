@@ -4,6 +4,7 @@ import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Va
 import { AuthService } from '../../../core/auth/auth.service';
 import { ErrorAlert } from '../../../shared/components/error-alert/error-alert';
 import { Modal } from '../../../shared/components/modal/modal';
+import { PrivacyNotice } from '../../../shared/components/privacy-notice/privacy-notice';
 import { resolveApiError } from '../../../shared/utils/api-error';
 import { INQUIRY_LIMITS } from '../../inquiries/inquiry.models';
 import { PublicPropertiesService } from '../../landing/public-properties.service';
@@ -26,7 +27,7 @@ export function phoneValidator(control: AbstractControl<string>): ValidationErro
 /** Modal para que un visitante pida informes de una publicación. No requiere sesión. */
 @Component({
   selector: 'app-inquiry-form-modal',
-  imports: [ReactiveFormsModule, Modal, ErrorAlert],
+  imports: [ReactiveFormsModule, Modal, ErrorAlert, PrivacyNotice],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './inquiry-form-modal.html',
 })

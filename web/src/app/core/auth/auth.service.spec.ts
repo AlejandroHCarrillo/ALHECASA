@@ -123,4 +123,29 @@ describe('AuthService', () => {
     expect(auth.user()?.isIndividual).toBe(true);
     expect(JSON.parse(localStorage.getItem('alhecasa.session') ?? '{}').token).toBe('jwt');
   });
+
+it('keeps the session but shows the new agency name after the administrator renames the agency', () => {
+    const auth = setup();
+    auth.login({ email: 'a@b.com', password: 'x' }).subscribe();
+    http.expectOne(`${environment.apiUrl}/auth/login`).flush({
+      accessToken: 'jwt',
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      user: { id: '1', fullName: 'A', email: 'a@b.com', role: UserRole.AgencyAdmin, agencyId: 'x', agencyName: 'Nombre viejo' },
+    });
+
+    auth.updateAgencyName('Nombre nuevo');
+
+    expect(auth.user()?.agencyName).toBe('Nombre nuevo');
+    expect(auth.token()).toBe('jwt');
+    expect(JSON.parse(localStorage.getItem('alhecasa.session') ?? '{}').user.agencyName).toBe('Nombre nuevo');
+  });
+
+  it('ignores a rename when nobody is signed in', () => {
+    const auth = setup();
+
+    auth.updateAgencyName('Nombre nuevo');
+
+    expect(auth.user()).toBeNull();
+    expect(localStorage.getItem('alhecasa.session')).toBeNull();
+  });
 });

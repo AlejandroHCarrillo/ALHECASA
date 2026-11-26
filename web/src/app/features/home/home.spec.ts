@@ -205,3 +205,55 @@ describe('Home: plan de la cuenta', () => {
     });
   });
 });
+
+describe('Home: información de la inmobiliaria', () => {
+  let http: HttpTestingController;
+  const ME_AGENCY = `${environment.apiUrl}/agencies/me`;
+
+  const open = (role: UserRole, isIndividual = false): ComponentFixture<Home> => {
+    localStorage.setItem(
+      'alhecasa.session',
+      JSON.stringify({
+        token: 'jwt',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        user: {
+          id: 'me', fullName: 'Me', email: 'me@a.com', role, agencyId: role === UserRole.PlatformAdmin ? null : 'agency-1', agencyName: 'Demo', isIndividual,
+        },
+      }),
+    );
+    TestBed.configureTestingModule({ providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
+    http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(Home);
+    fixture.detectChanges();
+    return fixture;
+  };
+
+  beforeEach(() => localStorage.clear());
+  afterEach(() => localStorage.clear());
+
+  it('shows the administrator of an agency the card to edit its information', () => {
+    const fixture = open(UserRole.AgencyAdmin);
+    http.expectOne(ME_AGENCY).flush({
+      id: 'agency-1', name: 'Demo', email: 'demo@a.com', phone: null, description: null, website: null, facebookUrl: null, instagramUrl: null,
+      openingHours: null, street: null, city: null, state: null, postalCode: null, hasLogo: false,
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="agency-profile"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="edit"]')).not.toBeNull();
+  });
+
+  it.each([UserRole.Supervisor, UserRole.Seller, UserRole.PlatformAdmin])('does not offer %s to edit the agency, nor ask for it', (role) => {
+    const fixture = open(role);
+
+    http.expectNone(ME_AGENCY);
+    expect(fixture.nativeElement.querySelector('app-agency-profile-card')).toBeNull();
+  });
+
+  it('does not offer a free individual account an agency profile', () => {
+    const fixture = open(UserRole.AgencyAdmin, true);
+
+    http.expectNone(ME_AGENCY);
+    expect(fixture.nativeElement.querySelector('app-agency-profile-card')).toBeNull();
+  });
+});

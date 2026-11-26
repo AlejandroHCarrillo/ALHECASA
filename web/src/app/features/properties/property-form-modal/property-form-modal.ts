@@ -5,6 +5,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { UserRole } from '../../../core/models/user-role';
 import { ErrorAlert } from '../../../shared/components/error-alert/error-alert';
 import { Modal } from '../../../shared/components/modal/modal';
+import { PrivacyNotice } from '../../../shared/components/privacy-notice/privacy-notice';
 import { resolveApiError } from '../../../shared/utils/api-error';
 import { formatCoordinates, parseCoordinates } from '../../../shared/utils/coordinates';
 import { imageUrl } from '../../../shared/utils/image-url';
@@ -42,7 +43,7 @@ export type ImageTile =
 /** Modal compartido para crear (property = null) y editar una propiedad. */
 @Component({
   selector: 'app-property-form-modal',
-  imports: [ReactiveFormsModule, Modal, ErrorAlert],
+  imports: [ReactiveFormsModule, Modal, ErrorAlert, PrivacyNotice],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './property-form-modal.html',
 })

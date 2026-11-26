@@ -8,5 +8,8 @@ public interface IAgencyRepository
 
     Task<IReadOnlyList<Agency>> ListAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Una inmobiliaria visible para el público: activa, no eliminada y que no sea un particular. Ignora el aislamiento por inmobiliaria.</summary>
+    Task<Agency?> GetPublicByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
     Task AddAsync(Agency agency, CancellationToken cancellationToken = default);
 }

@@ -154,4 +154,47 @@ describe('AgencyListings', () => {
     member.detectChanges();
     expect(root(member).querySelector('a[href="/login"]')).toBeNull();
   });
-});
+
+  describe('información de la inmobiliaria', () => {
+    const AGENCY_URL = `${environment.apiUrl}/public/agencies/agency-7`;
+    const info = {
+      id: 'agency-7', name: 'Norte Configurada', email: 'contacto@norte.test', phone: '55 1234 5678', description: 'Casas y departamentos.',
+      website: null, facebookUrl: null, instagramUrl: null, openingHours: 'Lun a Vie 9 a 18', street: null, city: 'Puebla', state: 'Puebla',
+      postalCode: null, hasLogo: false,
+    };
+
+    it('asks the public endpoint for it, with no token', async () => {
+      const harness = await open('agency-7');
+
+      const request = http.expectOne(AGENCY_URL);
+      expect(request.request.headers.has('Authorization')).toBe(false);
+      request.flush(info);
+      list().flush(page([]));
+      harness.detectChanges();
+    });
+
+    it('shows what the agency configured above its publications, and uses that name', async () => {
+      const harness = await open('agency-7');
+      http.expectOne(AGENCY_URL).flush(info);
+      list().flush(page([property('p-1')]));
+      harness.detectChanges();
+
+      expect(byId(harness, 'agency-info')).not.toBeNull();
+      expect(byId(harness, 'agency-name')?.textContent).toBe('Norte Configurada');
+      expect(byId(harness, 'description')?.textContent).toContain('Casas y departamentos.');
+      expect(byId(harness, 'hours')?.textContent).toContain('Lun a Vie 9 a 18');
+      expect(byId(harness, 'title')?.textContent).toContain('Publicaciones de Norte Configurada');
+    });
+
+    it('still lists the publications when the information cannot be loaded', async () => {
+      const harness = await open('agency-7');
+      http.expectOne(AGENCY_URL).flush({ title: 'Not found' }, { status: 404, statusText: 'Not Found' });
+      list().flush(page([property('p-1')]));
+      harness.detectChanges();
+
+      expect(byId(harness, 'agency-info')).toBeNull();
+      expect(byId(harness, 'title')?.textContent).toContain('Publicaciones de Demo Real Estate');
+      expect(root(harness).querySelectorAll('app-public-property-card')).toHaveLength(1);
+      expect(root(harness).querySelector('app-error-alert')).toBeNull();
+    });
+  });});

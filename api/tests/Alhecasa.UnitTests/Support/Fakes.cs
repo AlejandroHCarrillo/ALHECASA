@@ -87,6 +87,9 @@ internal sealed class FakeAgencyRepository : IAgencyRepository
     public Task<Agency?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(_agencies.FirstOrDefault(a => a.Id == id));
 
+    public Task<Agency?> GetPublicByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(_agencies.FirstOrDefault(a => a.Id == id && !a.IsDeleted && a.IsActive && !a.IsIndividual));
+
     public Task<IReadOnlyList<Agency>> ListAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<Agency>>(_agencies.ToList());
 }

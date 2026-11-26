@@ -22,6 +22,10 @@
       Volver a las propiedades
     </a>
 
+    @if (agency(); as info) {
+      <app-agency-header [agency]="info" />
+    }
+
     <div id="publicaciones" class="space-y-1">
       <h1 class="text-2xl font-bold" data-testid="title">
         @if (agencyName(); as name) {

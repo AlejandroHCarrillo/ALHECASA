@@ -5,6 +5,7 @@ import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
 import { ErrorAlert } from '../../../shared/components/error-alert/error-alert';
 import { Logo } from '../../../shared/components/logo/logo';
+import { PrivacyNotice } from '../../../shared/components/privacy-notice/privacy-notice';
 import { resolveApiError } from '../../../shared/utils/api-error';
 
 /** Mismas reglas que la API (StrongPassword): de 10 a 128 caracteres, con mayúscula, minúscula y número. */
@@ -24,7 +25,7 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
 /** Alta pública de una cuenta gratuita de particular para publicar su anuncio. */
 @Component({
   selector: 'app-register',
-  imports: [ReactiveFormsModule, RouterLink, ErrorAlert, Logo],
+  imports: [ReactiveFormsModule, RouterLink, ErrorAlert, Logo, PrivacyNotice],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './register.html',
 })

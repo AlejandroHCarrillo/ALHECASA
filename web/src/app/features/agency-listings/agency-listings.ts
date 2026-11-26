@@ -9,6 +9,9 @@ import { Logo } from '../../shared/components/logo/logo';
 import { Paginator } from '../../shared/components/paginator/paginator';
 import { PagedResult } from '../../shared/models/paged-result';
 import { resolveApiError } from '../../shared/utils/api-error';
+import { AgencyProfile } from '../agency-profile/agency-profile.models';
+import { AgencyProfileService } from '../agency-profile/agency-profile.service';
+import { AgencyHeader } from './agency-header/agency-header';
 import { PublicPropertyCard } from '../landing/public-property-card/public-property-card';
 import { PublicProperty, PublicPropertiesService } from '../landing/public-properties.service';
 
@@ -21,13 +24,14 @@ const PAGE_SIZE = 12;
  */
 @Component({
   selector: 'app-agency-listings',
-  imports: [RouterLink, ErrorAlert, Logo, Paginator, PublicPropertyCard],
+  imports: [RouterLink, AgencyHeader, ErrorAlert, Logo, Paginator, PublicPropertyCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './agency-listings.html',
 })
 export class AgencyListings {
   private readonly route = inject(ActivatedRoute);
   private readonly publicProperties = inject(PublicPropertiesService);
+  private readonly profiles = inject(AgencyProfileService);
   private readonly title = inject(Title);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly auth = inject(AuthService);
@@ -37,8 +41,11 @@ export class AgencyListings {
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
 
-  /** El nombre sale de las propias publicaciones: no hay otra consulta que lo dé. */
-  protected readonly agencyName = computed(() => this.result()?.items[0]?.agencyName ?? null);
+  /** Lo que la inmobiliaria configuró para mostrarse. Nulo si no se pudo cargar o no hay página pública: las publicaciones se ven igual. */
+  protected readonly agency = signal<AgencyProfile | null>(null);
+
+  /** El nombre configurado; si la información no cargó, el de las propias publicaciones. */
+  protected readonly agencyName = computed(() => this.agency()?.name ?? this.result()?.items[0]?.agencyName ?? null);
 
   private agencyId = '';
   private page = 1;
@@ -66,9 +73,21 @@ export class AgencyListings {
         this.loading.set(false);
         if (result) {
           this.result.set(result);
-          const name = result.items[0]?.agencyName;
-          this.title.setTitle(name ? `Publicaciones de ${name} · ALHECASA` : 'Publicaciones de la inmobiliaria · ALHECASA');
+          this.updateTitle();
         }
+      });
+
+    // La información de la inmobiliaria se pide aparte: si falla (o no existe), las publicaciones se muestran igual.
+    this.route.paramMap
+      .pipe(
+        map((params) => params.get('id') ?? ''),
+        tap(() => this.agency.set(null)),
+        switchMap((id) => this.profiles.getPublic(id).pipe(catchError(() => of(null)))),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((agency) => {
+        this.agency.set(agency);
+        this.updateTitle();
       });
 
     this.route.paramMap
@@ -82,6 +101,11 @@ export class AgencyListings {
         this.result.set(null);
         this.reload$.next();
       });
+  }
+
+  private updateTitle(): void {
+    const name = this.agencyName();
+    this.title.setTitle(name ? `Publicaciones de ${name} · ALHECASA` : 'Publicaciones de la inmobiliaria · ALHECASA');
   }
 
   protected goToPage(page: number): void {

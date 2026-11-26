@@ -1,0 +1,55 @@
+<app-modal title="Aviso de privacidad" boxClass="max-w-xl" (closed)="closed.emit()">
+  <div class="space-y-4 text-sm text-base-content/80" data-testid="privacy-notice">
+    <p>
+      En ALHECASA cuidamos tus datos. Este aviso explica qué información te pedimos, para qué la usamos y con quién se comparte.
+    </p>
+
+    <section class="space-y-1">
+      <h4 class="font-semibold text-base-content">Qué datos recabamos</h4>
+      <ul class="list-disc space-y-1 pl-5">
+        <li>Datos de contacto: nombre, apellidos, teléfono y correo electrónico.</li>
+        <li>Datos de tu cuenta: tu correo y tu contraseña, que se guarda protegida y nunca en texto legible.</li>
+        <li>Datos de tu propiedad: descripción, precio, ubicación, características y fotografías.</li>
+      </ul>
+    </section>
+
+    <section class="space-y-1">
+      <h4 class="font-semibold text-base-content">Para qué los usamos</h4>
+      <ul class="list-disc space-y-1 pl-5">
+        <li>Crear y administrar tu cuenta.</li>
+        <li>Publicar tus propiedades en el catálogo.</li>
+        <li>Hacer llegar tu solicitud de informes a quien publica la propiedad, para que te responda.</li>
+      </ul>
+    </section>
+
+    <section class="space-y-1">
+      <h4 class="font-semibold text-base-content">Con quién se comparten</h4>
+      <ul class="list-disc space-y-1 pl-5">
+        <li>
+          Una solicitud de informes se comparte <strong>únicamente</strong> con la inmobiliaria o el particular que publica esa propiedad.
+        </li>
+        <li>
+          Lo que publicas de una propiedad es visible para cualquier visitante, pero la dirección exacta no se muestra: solo una zona
+          aproximada. Quien publica como particular aparece como «Particular», sin su nombre.
+        </li>
+        <li>No vendemos tus datos ni los usamos para fines distintos a los anteriores.</li>
+      </ul>
+    </section>
+
+    <section class="space-y-1">
+      <h4 class="font-semibold text-base-content">Tus derechos</h4>
+      <p>
+        Puedes pedir en cualquier momento acceder a tus datos, corregirlos, cancelarlos u oponerte a su uso (derechos ARCO).
+        Si eres usuario con cuenta, también puedes corregir tus datos y tus publicaciones desde tu perfil.
+      </p>
+    </section>
+
+    <p class="text-xs text-base-content/60">
+      Si este aviso cambia, la versión vigente es la que se muestra aquí.
+    </p>
+  </div>
+
+  <div class="modal-action">
+    <button type="button" class="btn btn-primary" data-testid="privacy-close" (click)="closed.emit()">Entendido</button>
+  </div>
+</app-modal>

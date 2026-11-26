@@ -16,7 +16,7 @@ partial class AlhecasaDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261125181631_AddPlansAndFeatured";
+    public override string LastMigrationId => "20261126025547_AddAgencyProfile";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -32,16 +32,32 @@ partial class AlhecasaDbContextModelSnapshot : ModelSnapshot
                 b.Property<Guid>("Id")
                     .HasColumnType("uniqueidentifier");
 
+                b.Property<string>("City")
+                    .HasMaxLength(100)
+                    .HasColumnType("nvarchar(100)");
+
                 b.Property<DateTimeOffset>("CreatedAt")
                     .HasColumnType("datetimeoffset");
 
                 b.Property<DateTimeOffset?>("DeletedAt")
                     .HasColumnType("datetimeoffset");
 
+                b.Property<string>("Description")
+                    .HasMaxLength(1000)
+                    .HasColumnType("nvarchar(1000)");
+
                 b.Property<string>("Email")
                     .IsRequired()
                     .HasMaxLength(256)
                     .HasColumnType("nvarchar(256)");
+
+                b.Property<string>("FacebookUrl")
+                    .HasMaxLength(200)
+                    .HasColumnType("nvarchar(200)");
+
+                b.Property<string>("InstagramUrl")
+                    .HasMaxLength(200)
+                    .HasColumnType("nvarchar(200)");
 
                 b.Property<bool>("IsActive")
                     .HasColumnType("bit");
@@ -54,8 +70,20 @@ partial class AlhecasaDbContextModelSnapshot : ModelSnapshot
                     .HasMaxLength(20)
                     .HasColumnType("nvarchar(20)");
 
+                b.Property<string>("LogoContentType")
+                    .HasMaxLength(50)
+                    .HasColumnType("nvarchar(50)");
+
+                b.Property<string>("LogoStorageKey")
+                    .HasMaxLength(64)
+                    .HasColumnType("nvarchar(64)");
+
                 b.Property<string>("Name")
                     .IsRequired()
+                    .HasMaxLength(200)
+                    .HasColumnType("nvarchar(200)");
+
+                b.Property<string>("OpeningHours")
                     .HasMaxLength(200)
                     .HasColumnType("nvarchar(200)");
 
@@ -63,8 +91,24 @@ partial class AlhecasaDbContextModelSnapshot : ModelSnapshot
                     .HasMaxLength(30)
                     .HasColumnType("nvarchar(30)");
 
+                b.Property<string>("PostalCode")
+                    .HasMaxLength(10)
+                    .HasColumnType("nvarchar(10)");
+
+                b.Property<string>("State")
+                    .HasMaxLength(100)
+                    .HasColumnType("nvarchar(100)");
+
+                b.Property<string>("Street")
+                    .HasMaxLength(200)
+                    .HasColumnType("nvarchar(200)");
+
                 b.Property<DateTimeOffset?>("UpdatedAt")
                     .HasColumnType("datetimeoffset");
+
+                b.Property<string>("Website")
+                    .HasMaxLength(200)
+                    .HasColumnType("nvarchar(200)");
 
                 b.HasKey("Id");
 

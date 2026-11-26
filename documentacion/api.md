@@ -24,6 +24,12 @@ Referencia de los endpoints de la API de ALHECASA. Para instalar y ejecutar, con
 | `PUT` | `/api/users/{id}` | `PlatformAdmin`, `AgencyAdmin` | Actualizar usuario |
 | `DELETE` | `/api/users/{id}` | `PlatformAdmin`, `AgencyAdmin` | Eliminar usuario (borrado lógico) |
 | `GET` | `/api/agencies` | `PlatformAdmin`, `AgencyAdmin` | Inmobiliarias visibles para el usuario |
+| `GET` | `/api/agencies/me` | `AgencyAdmin` (inmobiliaria, no particular) | Perfil de la propia inmobiliaria |
+| `PUT` | `/api/agencies/me` | `AgencyAdmin` (inmobiliaria, no particular) | Editar el perfil de la propia inmobiliaria |
+| `PUT` | `/api/agencies/me/logo` | `AgencyAdmin` (inmobiliaria, no particular) | Subir o reemplazar el logotipo |
+| `DELETE` | `/api/agencies/me/logo` | `AgencyAdmin` (inmobiliaria, no particular) | Quitar el logotipo |
+| `GET` | `/api/public/agencies/{id}` | Público (120 solicitudes por minuto por IP) | Información pública de una inmobiliaria |
+| `GET` | `/api/public/agencies/{id}/logo` | Público (120 solicitudes por minuto por IP) | Logotipo de una inmobiliaria |
 | `GET` | `/api/properties` | `PlatformAdmin`, `AgencyAdmin`, `Supervisor`, `Seller` | Inventario paginado con búsqueda |
 | `GET` | `/api/properties/gallery` | `AgencyAdmin`, `Supervisor`, `Seller` | Galería: las propiedades publicadas de la inmobiliaria del usuario, tal como las ve un visitante |
 | `GET` | `/api/properties/{id}` | Los mismos | Detalle de una propiedad |
@@ -306,6 +312,53 @@ Lista las inmobiliarias visibles para el usuario: todas para `PlatformAdmin`, so
 
 ---
 
+### Perfil de la propia inmobiliaria
+
+El administrador de una inmobiliaria configura la información que se muestra en su página pública. Solo el rol `AgencyAdmin` de una **inmobiliaria**: un particular (`isIndividual`), el resto del personal, los clientes y el administrador de plataforma reciben `403`. Un `AgencyAdmin` solo alcanza su propia inmobiliaria: no hay forma de indicar otra.
+
+### Objeto `AgencyProfile`
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `id` | guid | |
+| `name` | string | Obligatorio, máximo 200 |
+| `email` | string | Obligatorio, correo válido, máximo 256. **Se publica** |
+| `phone` | string \| null | De 7 en adelante: solo dígitos, espacios y `+ ( ) - .`; máximo 30. **Se publica** |
+| `description` | string \| null | Máximo 1000 |
+| `website`, `facebookUrl`, `instagramUrl` | string \| null | Dirección `http://` o `https://`, máximo 200. Cualquier otro esquema (`javascript:`, `data:`, `ftp:`…) responde `400`: estos enlaces se publican |
+| `openingHours` | string \| null | Texto libre, máximo 200 |
+| `street` | string \| null | Máximo 200. **Se publica** |
+| `city`, `state` | string \| null | Máximo 100 |
+| `postalCode` | string \| null | Máximo 10 |
+| `hasLogo` | bool | Solo lectura: se cambia con los endpoints del logotipo |
+
+Los textos se recortan y un texto vacío se guarda como `null`.
+
+### `GET /api/agencies/me`
+
+Respuesta `200` con el `AgencyProfile` de la inmobiliaria del usuario.
+
+### `PUT /api/agencies/me`
+
+Reemplaza los datos del perfil (todos los campos salvo `id` y `hasLogo`). Respuesta `200` con el perfil guardado; `400` si algún dato es inválido, con el detalle por campo. Cambiar el `name` cambia también el nombre con el que se publican sus propiedades en el catálogo.
+
+### `PUT /api/agencies/me/logo`
+
+`multipart/form-data` con el archivo en el campo `file`: JPEG, PNG o WebP de hasta 5 MB. El formato se reconoce por el contenido del archivo, no por su nombre ni por el tipo que declara el cliente (un SVG, que puede llevar scripts, se rechaza). Reemplaza el logotipo anterior y borra su archivo. Respuesta `200` con el perfil; `400` si falta el archivo o no es una imagen aceptada.
+
+### `DELETE /api/agencies/me/logo`
+
+Quita el logotipo y borra su archivo. Si no había, no hace nada. Respuesta `200` con el perfil.
+
+### `GET /api/public/agencies/{id}`
+
+Información de una inmobiliaria para su página pública (`/inmobiliarias/:id` en la web). **No requiere token.** Devuelve los campos del `AgencyProfile` salvo `isActive` y datos internos. **Solo existe para inmobiliarias activas y no eliminadas**: un particular es anónimo y nunca tiene página, así que su id, una inmobiliaria inactiva o eliminada y un id desconocido responden `404` sin distinguir el motivo.
+
+### `GET /api/public/agencies/{id}/logo`
+
+La imagen del logotipo, con las mismas reglas de visibilidad (`404` también si no tiene logotipo). Se entrega con `ETag` y `Cache-Control: public, no-cache`: el navegador la revalida en cada visita y recibe `304` si no cambió; al cambiar el logotipo cambia el `ETag`.
+
+---
 ## Propiedades
 
 Inventario de propiedades que administra una inmobiliaria. Acceso: `PlatformAdmin`, `AgencyAdmin`, `Supervisor` y `Seller`. Cada propiedad pertenece a una inmobiliaria y el personal solo ve las suyas; una propiedad de otra inmobiliaria responde `404`, no `403`.

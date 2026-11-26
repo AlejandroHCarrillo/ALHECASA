@@ -150,4 +150,25 @@ describe('InquiryFormModal', () => {
     expect(field('name').value).toBe('  Ana Lopez ');
     expect(fixture.nativeElement.querySelector('[data-testid="sent"]')).toBeNull();
   });
+
+it('offers the privacy notice in a modal without sending the request', () => {
+    HTMLDialogElement.prototype.showModal ??= function showModal(this: HTMLDialogElement) {
+      this.setAttribute('open', '');
+    };
+    open();
+    fill();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="privacy-legend"]')?.textContent).toContain('enviar la solicitud');
+    (fixture.nativeElement.querySelector('[data-testid="privacy-open"]') as HTMLElement).click();
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="privacy-notice"]')).not.toBeNull();
+    http.expectNone(URL);
+
+    (fixture.nativeElement.querySelector('[data-testid="privacy-close"]') as HTMLElement).click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="privacy-notice"]')).toBeNull();
+    expect(field('name').value).toBe('  Ana Lopez '); // el formulario conserva lo capturado
+  });
 });

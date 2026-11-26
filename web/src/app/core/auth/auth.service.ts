@@ -43,6 +43,17 @@ export class AuthService {
     this._session.set(session);
   }
 
+  /** El administrador cambió el nombre de su inmobiliaria: la sesión guardada lo refleja sin tener que volver a ingresar. */
+  updateAgencyName(name: string): void {
+    const session = this._session();
+    if (!session) {
+      return;
+    }
+
+    const updated: Session = { ...session, user: { ...session.user, agencyName: name } };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
+    this._session.set(updated);
+  }
   /** El usuario cierra su sesión a propósito: vuelve a la portada pública. */
   logout(): void {
     this.clearSession();

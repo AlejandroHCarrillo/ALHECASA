@@ -6,6 +6,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { USER_ROLE_LABELS, UserRole, requiresAgency } from '../../../core/models/user-role';
 import { ErrorAlert } from '../../../shared/components/error-alert/error-alert';
 import { Modal } from '../../../shared/components/modal/modal';
+import { PrivacyNotice } from '../../../shared/components/privacy-notice/privacy-notice';
 import { resolveApiError } from '../../../shared/utils/api-error';
 import { Agency, User } from '../user.models';
 import { UsersService } from '../users.service';
@@ -13,7 +14,7 @@ import { UsersService } from '../users.service';
 /** Modal compartido para crear (user = null) y editar un usuario. */
 @Component({
   selector: 'app-user-form-modal',
-  imports: [ReactiveFormsModule, Modal, ErrorAlert],
+  imports: [ReactiveFormsModule, Modal, ErrorAlert, PrivacyNotice],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './user-form-modal.html',
 })

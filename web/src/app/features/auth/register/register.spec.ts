@@ -114,4 +114,20 @@ describe('Register', () => {
 
     expect(fixture.nativeElement.querySelector('a[href="/login"]')).not.toBeNull();
   });
+
+it('offers the privacy notice in a modal without submitting the form', () => {
+    HTMLDialogElement.prototype.showModal ??= function showModal(this: HTMLDialogElement) {
+      this.setAttribute('open', '');
+    };
+    create();
+    fill();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="privacy-legend"]')?.textContent).toContain('crear tu cuenta');
+    (fixture.nativeElement.querySelector('[data-testid="privacy-open"]') as HTMLElement).click();
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="privacy-notice"]')).not.toBeNull();
+    http.expectNone(URL);
+  });
 });

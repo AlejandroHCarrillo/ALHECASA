@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<ISessionValidator, SessionValidator>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IAgencyService, AgencyService>();
+        services.AddScoped<IPublicAgencyService, PublicAgencyService>();
         services.AddScoped<IPropertyService, PropertyService>();
         services.AddScoped<IPublicPropertyService, PublicPropertyService>();
         services.AddScoped<IPublicInquiryService, PublicInquiryService>();

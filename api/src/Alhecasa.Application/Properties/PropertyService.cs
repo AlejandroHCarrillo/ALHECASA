@@ -250,30 +250,7 @@ public sealed class PropertyService(
     private const string PublishNeedsImagesMessage =
         "A published property needs at least one image. Save it as a draft, add the images, then publish it.";
 
-    private static ImageFormat ValidateImage(ImageUpload upload)
-    {
-        if (upload.Length <= 0)
-        {
-            throw new DomainException("An image file is empty.");
-        }
-
-        if (upload.Length > PropertyImageRules.MaxBytes)
-        {
-            throw new DomainException($"Each image can be at most {PropertyImageRules.MaxBytes / (1024 * 1024)} MB.");
-        }
-
-        if (!upload.Content.CanSeek)
-        {
-            throw new DomainException("The image could not be read.");
-        }
-
-        Span<byte> header = stackalloc byte[PropertyImageRules.HeaderLength];
-        upload.Content.Position = 0;
-        var read = upload.Content.ReadAtLeast(header, header.Length, throwOnEndOfStream: false);
-
-        return PropertyImageRules.Detect(header[..read])
-            ?? throw new DomainException("Only JPEG, PNG and WebP images are accepted.");
-    }
+    private static ImageFormat ValidateImage(ImageUpload upload) => PropertyImageRules.Validate(upload);
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
