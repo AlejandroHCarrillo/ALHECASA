@@ -7,6 +7,11 @@
   [attr.aria-label]="'Ver el detalle de ' + property.title"
 >
 <figure class="relative aspect-4/3 bg-base-200" data-testid="cover">
+  @if (property.isFeatured) {
+    <span class="badge badge-warning absolute left-2 top-2 z-10 gap-1 font-semibold" data-testid="featured-badge">
+      <i class="fa-solid fa-star" aria-hidden="true"></i>Destacado
+    </span>
+  }
   @if (property.imageIds[0]; as cover) {
     <img
       [src]="imageUrl(cover)"
@@ -83,7 +88,12 @@
 
   @if (property.agencyName) {
     <p class="mt-auto border-t border-base-200 pt-3 text-xs text-base-content/60">
-      Publica: {{ property.agencyName }}
+      Publica:
+      @if (property.agencyId) {
+        <a [routerLink]="['/inmobiliarias', property.agencyId]" class="link link-hover font-medium" data-testid="agency-link" [attr.title]="'Ver todas las publicaciones de ' + property.agencyName">{{ property.agencyName }}</a>
+      } @else {
+        {{ property.agencyName }}
+      }
     </p>
   }
 </div>

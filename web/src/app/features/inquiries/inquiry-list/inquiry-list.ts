@@ -2,6 +2,7 @@ import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { Subject, catchError, debounceTime, distinctUntilChanged, of, switchMap, tap } from 'rxjs';
 import { ErrorAlert } from '../../../shared/components/error-alert/error-alert';
 import { Paginator } from '../../../shared/components/paginator/paginator';
@@ -23,6 +24,7 @@ const PAGE_SIZE = 10;
 export class InquiryList {
   private readonly inquiriesService = inject(InquiriesService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute, { optional: true });
 
   protected readonly pageSize = PAGE_SIZE;
   protected readonly statusLabels = INQUIRY_STATUS_LABELS;
@@ -68,6 +70,12 @@ export class InquiryList {
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.restart());
     this.statusControl.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.restart());
+
+    // Las tarjetas de la página de inicio abren la lista ya filtrada (/solicitudes?status=New).
+    const initial = this.route?.snapshot.queryParamMap.get('status');
+    if (this.statuses.some((s) => s === initial)) {
+      this.statusControl.setValue(initial as InquiryStatus, { emitEvent: false });
+    }
 
     this.reload$.next();
   }

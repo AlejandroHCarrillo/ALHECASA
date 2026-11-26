@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { environment } from '../../../../environments/environment';
 import { sampleInquiry } from '../inquiry.fixtures';
 import { Inquiry } from '../inquiry.models';
@@ -49,6 +49,42 @@ describe('InquiryList', () => {
     expect(request.request.params.get('pageSize')).toBe('10');
     expect(request.request.params.has('status')).toBe(false);
     expect(request.request.params.has('search')).toBe(false);
+    request.flush(page([]));
+  });
+
+  it.each(['New', 'InProgress', 'Closed'])('opens already filtered when the address carries ?status=%s (the home cards link here)', (status) => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({ status }) } } },
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+    fixture = TestBed.createComponent(InquiryList);
+    fixture.detectChanges();
+
+    const request = list();
+    expect(request.request.params.get('status')).toBe(status);
+    request.flush(page([]));
+  });
+
+  it('ignores a ?status= that is not a stage', () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({ status: 'Hackeada' }) } } },
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+    fixture = TestBed.createComponent(InquiryList);
+    fixture.detectChanges();
+
+    const request = list();
+    expect(request.request.params.has('status')).toBe(false);
     request.flush(page([]));
   });
 

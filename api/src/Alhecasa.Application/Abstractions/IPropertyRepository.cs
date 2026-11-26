@@ -1,4 +1,5 @@
 using Alhecasa.Application.Common;
+using Alhecasa.Application.Dashboard;
 using Alhecasa.Application.Properties;
 using Alhecasa.Domain.Entities;
 
@@ -29,6 +30,15 @@ public interface IPropertyRepository
 
     /// <summary>Propiedades no eliminadas de una inmobiliaria (borradores incluidos), sin importar quién consulta.</summary>
     Task<int> CountByAgencyAsync(Guid agencyId, CancellationToken cancellationToken = default);
+
+    /// <summary>Propiedades de una inmobiliaria que están destacadas en este momento (con seguimiento de cambios, para poder quitarles el destacado).</summary>
+    Task<IReadOnlyList<Property>> ListFeaturedAsync(Guid agencyId, DateTimeOffset now, CancellationToken cancellationToken = default);
+
+    /// <summary>Propiedades no eliminadas y destacadas en este momento de cada inmobiliaria que tenga alguna (para el tablero del administrador de plataforma).</summary>
+    Task<IReadOnlyDictionary<Guid, PropertyUsage>> GetUsageByAgencyAsync(DateTimeOffset now, CancellationToken cancellationToken = default);
+
+    /// <summary>Cuántas propiedades no eliminadas tiene una inmobiliaria en cada estado, y cuántas están destacadas en este momento.</summary>
+    Task<PropertyStats> GetStatsAsync(Guid agencyId, DateTimeOffset now, CancellationToken cancellationToken = default);
 
     Task AddAsync(Property entity, CancellationToken cancellationToken = default);
 }

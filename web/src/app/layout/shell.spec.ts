@@ -70,4 +70,26 @@ describe('Shell menu', () => {
     expect(items).toContain('Propiedades');
     expect(items).toContain('Solicitudes de informes');
   });
+
+  it('only the platform administrator manages the plans and the subscriptions', () => {
+    expect(open(UserRole.PlatformAdmin)).toEqual(expect.arrayContaining(['Planes', 'Suscripciones']));
+
+    for (const role of [UserRole.AgencyAdmin, UserRole.Supervisor, UserRole.Seller, UserRole.Client]) {
+      TestBed.resetTestingModule();
+      const items = open(role);
+      expect(items).not.toContain('Planes');
+      expect(items).not.toContain('Suscripciones');
+    }
+  });
+
+  it('only the account administrator sees «Mi plan», where plans are bought', () => {
+    expect(open(UserRole.AgencyAdmin)).toContain('Mi plan');
+    TestBed.resetTestingModule();
+    expect(openIndividual()).toContain('Mi plan');
+
+    for (const role of [UserRole.PlatformAdmin, UserRole.Supervisor, UserRole.Seller, UserRole.Client]) {
+      TestBed.resetTestingModule();
+      expect(open(role)).not.toContain('Mi plan');
+    }
+  });
 });

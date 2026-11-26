@@ -7,6 +7,54 @@
     </button>
   </div>
 
+  @if (billing(); as plan) {
+    <section class="flex flex-wrap gap-x-10 gap-y-3 rounded-box border border-base-300 bg-base-100 p-4 text-sm" aria-label="Mi plan" data-testid="my-plan">
+      <div>
+        <p class="font-semibold">Publicaciones</p>
+        <p>
+          {{ plan.listings.planName ?? 'Sin plan (sin tope)' }}
+          @if (plan.listings.isFree) {
+            <span class="badge badge-accent badge-sm ml-1">Gratuito</span>
+          }
+        </p>
+        <p class="text-base-content/70" data-testid="listings-usage">
+          {{ describeUsage(plan.listings.used, plan.listings.limit) }}
+          @if (plan.listings.endsAt) {
+            · vence {{ plan.listings.endsAt | date: 'dd/MM/yyyy' }}
+          }
+        </p>
+        @if (plan.listings.limit !== null) {
+          <progress
+            class="progress w-40"
+            [class.progress-error]="usagePercent(plan.listings.used, plan.listings.limit) >= 100"
+            [value]="usagePercent(plan.listings.used, plan.listings.limit)"
+            max="100"
+            aria-label="Publicaciones usadas"
+          ></progress>
+        }
+      </div>
+      <div>
+        <p class="font-semibold">Destacados</p>
+        @if (plan.featured; as featured) {
+          <p>{{ featured.planName }}</p>
+          <p class="text-base-content/70" data-testid="featured-usage">
+            {{ describeUsage(featured.used, featured.limit) }} · vence {{ featured.endsAt | date: 'dd/MM/yyyy' }}
+          </p>
+        } @else {
+          <p class="text-base-content/70" data-testid="no-featured">Sin paquete de destacados.</p>
+        }
+      </div>
+      @if (canBuyPlans) {
+        <div class="flex items-center">
+          <a routerLink="/mi-plan" class="btn btn-primary btn-sm" data-testid="buy-plan">
+            <i class="fa-solid fa-credit-card" aria-hidden="true"></i>
+            Comprar o cambiar de plan
+          </a>
+        </div>
+      }
+    </section>
+  }
+
   <label class="input input-bordered flex w-full max-w-md items-center gap-2">
     <i class="fa-solid fa-magnifying-glass text-base-content/50" aria-hidden="true"></i>
     <input
@@ -126,9 +174,31 @@
                 }
                 <td>
                   <span class="badge" [class]="statusBadges[property.status]">{{ statusLabels[property.status] }}</span>
+                  @if (property.isFeatured) {
+                    <span class="badge badge-warning ml-1 gap-1" data-testid="featured-badge">
+                      <i class="fa-solid fa-star" aria-hidden="true"></i>Destacado
+                    </span>
+                  }
                 </td>
                 <td class="text-right">
                   <div class="inline-flex gap-2">
+                    @if (property.status === published || property.isFeatured) {
+                      <div class="tooltip" [attr.data-tip]="property.isFeatured ? 'Quitar destacado' : 'Destacar'">
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-square"
+                          [class.btn-warning]="property.isFeatured"
+                          [class.btn-outline]="!property.isFeatured"
+                          [attr.aria-label]="property.isFeatured ? 'Quitar destacado' : 'Destacar propiedad'"
+                          [attr.aria-pressed]="property.isFeatured"
+                          data-testid="toggle-featured"
+                          [disabled]="featuringId() === property.id"
+                          (click)="$event.stopPropagation(); toggleFeatured(property)"
+                        >
+                          <i class="fa-star" [class.fa-solid]="property.isFeatured" [class.fa-regular]="!property.isFeatured" aria-hidden="true"></i>
+                        </button>
+                      </div>
+                    }
                     <div class="tooltip" data-tip="Editar">
                       <button
                         type="button"

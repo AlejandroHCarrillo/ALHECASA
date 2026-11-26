@@ -38,6 +38,8 @@ describe('PropertyFormModal', () => {
     petsAllowed: false,
     furnished: false,
     amenities: [],
+    isFeatured: false,
+    featuredUntil: null,
     imageIds: ['img-1'],
     createdAt: new Date().toISOString(),
     updatedAt: null,

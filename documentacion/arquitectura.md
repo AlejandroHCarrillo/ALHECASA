@@ -31,7 +31,8 @@ Reglas de negocio y entidades, sin dependencias externas.
 - `Property`: propiedad del inventario de una inmobiliaria (tenant). Sus invariantes (título, ciudad y estado obligatorios, precio mayor a cero, sin cuartos ni áreas negativos) se validan en el dominio. Por ahora lleva también precio, operación y estado; la estrategia (F0-07) los separa en una publicación (*Listing*).
 - `PropertyImage`: imagen de una propiedad (tenant). Guarda solo metadatos (clave de almacenamiento, tipo, tamaño, orden); el archivo vive en el almacenamiento. `Property` controla la galería (`AddImage`, `RemoveImage`) y su tope de 10.
 - `Inquiry`: solicitud de informes de una propiedad (tenant, agregado). Guarda los datos del prospecto, su pregunta, el estado (`New`, `InProgress`, `Closed`) y el título de la propiedad al momento de la solicitud. Controla su historial (`InquiryFollowUp`: respuesta o nota, con el nombre del autor al momento de escribirla) con tope de 200 registros; una respuesta pasa el estado a `InProgress`.
-- `PropertyType`, `OperationType`, `PropertyStatus`, `CurrencyCode`: enumeraciones guardadas como texto.
+- `Plan` (catálogo de la plataforma, sin tenant) y `Subscription` (contratación de una cuenta, con tenant): la monetización; ver «Planes, suscripciones y destacados». `Property` lleva además `FeaturedUntil`.
+- `PropertyType`, `OperationType`, `PropertyStatus`, `CurrencyCode`, `PlanKind`, `PlanAudience`, `BillingPeriod`: enumeraciones guardadas como texto.
 - `UserRole`: `PlatformAdmin`, `AgencyAdmin`, `Supervisor`, `Seller` (vendedor), `Client`. El rol se guarda como texto, así que añadir valores no requirió migración.
 - `DomainException`: violación de una regla del dominio.
 
@@ -98,14 +99,31 @@ Quien vende o renta por su cuenta se registra solo (`POST /api/auth/register`, p
 
 Reglas propias de la cuenta gratuita:
 
-- **Tope de propiedades** (`AccountLimits:IndividualMaxProperties`, por defecto 3; cuentan los borradores y no las eliminadas). Se revisa en `PropertyService.CreateAsync` y se responde `422` (`PlanLimitException`, con un mensaje en español listo para mostrar). Las inmobiliarias (`Company`) no tienen tope.
+- **Tope de propiedades**: el del plan gratuito (3 en el seed; `AccountLimits:IndividualMaxProperties` es el respaldo si no hay plan gratuito). Cuentan los borradores y no las eliminadas. Se revisa en `PropertyService.CreateAsync` y se responde `422` (`PlanLimitException`, con un mensaje en español listo para mostrar). Una cuenta puede subir el tope contratando un plan de pago (ver la sección siguiente).
 - **No administra usuarios**: `UserService` le niega `/api/users` (`403`), y el menú y la ruta `/usuarios` se ocultan con `isIndividual` (que viaja en `CurrentUserDto` y en `GET /api/agencies`).
 - **El servidor fija el rol y el espacio**; el cuerpo del registro no puede elegirlos, así que no hay escalada de privilegios.
 - Alta limitada por IP (5 por hora) porque cada alta crea un espacio y un usuario.
 
 Es el puente hacia el modelo `Membership` de la estrategia (particular = usuario estándar sin membresía): cuando exista, estos espacios `Individual` se migran a usuarios sin organización.
 
-**Lo que esto no incluye todavía** (ver «Limitaciones»): verificación de correo, moderación de anuncios y planes de pago.
+**Lo que esto no incluye todavía** (ver «Limitaciones»): verificación de correo y moderación de anuncios.
+
+### Planes, suscripciones y destacados
+
+Así se monetiza el portal. El administrador de plataforma crea **planes** (`/planes`) y registra las **contrataciones** de cada cuenta (`/suscripciones`).
+
+- **`Plan`** es del catálogo de la plataforma: no tiene `AgencyId` ni filtro de tenant (solo el borrado lógico). Tiene un `Kind` (`Listings`: tope de propiedades; `Featured`: paquete de anuncios destacados), una audiencia (`Individual`, `Company` o `Any`), un `Limit` (`null` = ilimitado), un `Period` (día, semana, mes o año), precio y moneda. El **plan gratuito** es el de precio 0: único, de publicaciones, para particulares, con tope y sin vencimiento; no se elimina ni se vuelve de pago.
+- **`Subscription`** es una contratación de una cuenta (sí lleva filtro de tenant). **Guarda una copia** del tipo, el tope, el periodo y el nombre del plan, y el monto pagado: editar o eliminar un plan después no cambia lo ya contratado. Dura exactamente un periodo desde el registro. Una cuenta tiene como máximo una contratación vigente **por tipo**; contratar otra del mismo tipo cancela la anterior.
+- **Dos caminos para contratar, una sola regla.** La cuenta compra con tarjeta (`CheckoutAsync`) o el administrador de plataforma registra un pago recibido fuera del sistema (`AssignAsync`). Ambos terminan en el mismo método privado (`SubscribeAsync`), así que reemplazo, vigencia y limpieza de destacados no se duplican.
+- **Pasarela de pagos detrás de un puerto (decisión).** `IPaymentGateway` (Application) cobra y devuelve aprobado o rechazado (un rechazo no es una excepción: es un resultado). Hoy lo implementa `SimulatedPaymentGateway` (Infrastructure), que decide según el número de tarjeta. Integrar la real es cambiar una línea en `AddInfrastructure`: servicios, endpoints y pantallas no cambian. Un rechazo se convierte en `PaymentDeclinedException` → `402`, y no deja nada a medias porque el cobro ocurre **antes** de guardar la contratación.
+- **El servidor cobra el precio del plan**, nunca un monto del cliente. La tarjeta no se guarda ni se registra (`ToString` de los objetos que la llevan la oculta; los errores de validación no repiten lo capturado). Con la pasarela real lo ideal es tokenizar en el navegador para que la tarjeta nunca pase por el servidor.
+- **Protección contra desplegar la simulación:** como aprueba sin cobrar, `Program.cs` se niega a arrancar fuera de Desarrollo salvo con `Payments:AllowSimulated=true`. Al integrar la pasarela real, esa comprobación se retira.
+- **El tope de publicaciones** lo resuelve `EntitlementService`: una contratación vigente manda; si no hay y la cuenta es de un particular, el plan gratuito; si no hay y es una **inmobiliaria**, no hay tope (así siguen las que existían antes de los planes, hasta que se les asigne uno). Al vencer una contratación la cuenta vuelve a esa base. Cuentan las propiedades existentes, borradores incluidos y sin las eliminadas.
+- **Destacados:** `Property.FeaturedUntil` guarda hasta cuándo está destacada, que es el fin del paquete que la destacó. Una propiedad está destacada mientras `FeaturedUntil` sea posterior a «ahora» (por eso no hay un trabajo que vencerlos: el reloj lo resuelve). El paquete limita **cuántas están destacadas a la vez** (`Limit`), no cuántas veces se destaca. Solo se destaca una propiedad `Published`; al dejar de estarlo pierde el destacado. Cambiar o cancelar el paquete **quita el destacado de todas** las propiedades de la cuenta (el paquete nuevo puede tener otra capacidad): hay que elegirlas de nuevo.
+- **Orden público:** con el orden por defecto (`Recent`) los destacados van primero (`FeaturedUntil > now` descendente, luego la antigüedad y el id). Con otro orden no se anteponen, pero `isFeatured` siempre viaja para mostrar la etiqueta.
+- **Hora:** todo usa `TimeProvider` (en las pruebas, un reloj que se adelanta), nunca `DateTime.UtcNow`.
+- **Seed:** `DatabaseInitializer` crea los planes solo si no hay ninguno: el gratuito y unos planes de ejemplo (inmobiliaria 100/200/300/500, premium ilimitado y varios paquetes de destacados). **Los precios son ilustrativos**: se editan en `/planes`.
+- **Lo que falta:** la pasarela real, facturación, renovación automática, avisos de vencimiento y reembolsos o prorrateo al cambiar de plan (se reemplaza sin devolver nada).
 
 ### JWT
 
@@ -203,6 +221,10 @@ web/src/app/
 | Ver inmobiliarias | Todas | Solo la suya | Sin acceso |
 | Ver, crear, editar y eliminar propiedades | Todas (al crear debe elegir inmobiliaria) | Solo las de su inmobiliaria | `Supervisor` y `Seller`: solo las de su inmobiliaria. `Client`: sin acceso |
 | Ver y atender solicitudes de informes | Sin acceso | Solo las de su inmobiliaria | `Supervisor` y `Seller`: solo las de su inmobiliaria. `Client`: sin acceso |
+| Comprar un plan para su cuenta (`GET /api/billing/plans`, `POST /api/billing/checkout`) | Sin acceso | Sí | Sin acceso (`Supervisor`, `Seller` y `Client`) |
+| Crear planes y registrar o cancelar contrataciones | Sí (`/api/plans`, `/api/billing/accounts/...`) | Sin acceso | Sin acceso |
+| Ver el plan y el uso de la propia cuenta | Sin acceso (no tiene cuenta) | Sí (`GET /api/billing/me`) | `Supervisor` y `Seller`: sí. `Client`: sin acceso |
+| Destacar o quitar el destacado de una propiedad | Sí, con el paquete de la cuenta de la propiedad | Solo las de su inmobiliaria | `Supervisor` y `Seller`: solo las de su inmobiliaria. `Client`: sin acceso |
 | Registrarse y publicar gratis | Sin acceso (no aplica) | Público, sin sesión: `POST /api/auth/register` crea un espacio `Individual` con un usuario `AgencyAdmin` (tope de propiedades; no administra usuarios) | Público, sin sesión (igual) |
 
 Nadie puede cambiar su propio rol, desactivarse ni eliminarse.
@@ -234,7 +256,8 @@ Lo que este alcance **no** incluye, para que nadie lo dé por hecho:
 - **Cierre de sesión en el servidor:** el acceso se revoca cuando la cuenta cambia, pero no hay lista de tokens revocados: un token de una cuenta sana sigue siendo válido hasta que vence, aunque el usuario "cierre sesión" en el navegador. Requiere un identificador de sesión o una lista de `jti` revocados.
 - **Registro de inmobiliarias:** hoy las inmobiliarias solo se crean con el seeding o directamente en la base (`GET /api/agencies` es de solo lectura). El registro público existe solo para particulares (cuenta gratuita).
 - **Cuenta gratuita sin verificación ni moderación:** el correo no se verifica (no hay infraestructura de correo) y los anuncios se publican de inmediato, sin revisión. El `409` del registro revela que un correo ya tiene cuenta. Un particular se publica como «Particular»: el catálogo público nunca muestra su nombre real (`PublicPropertyService.IndividualPublisherName`); el nombre queda solo en su cuenta.
-- **Entidades `Client`, `Plan`, `Property` y `Listing`:** forman parte del propósito del proyecto pero aún no están implementadas.
+- **Entidades `Client` y `Listing`:** forman parte del propósito del proyecto pero aún no están implementadas. `Plan` ya existe (ver «Planes, suscripciones y destacados»).
+- **Pasarela de pagos real:** la compra con tarjeta funciona, pero contra una simulación que no mueve dinero (y que por eso exige `Payments:AllowSimulated=true` fuera de Desarrollo). Tampoco hay facturación ni renovación automática, y los precios del seed son ilustrativos. Una inmobiliaria sin plan contratado sigue sin tope hasta que el administrador le asigne uno.
 - **Despliegue:** no hay Dockerfile ni pipeline de CI.
 
 ## Evolución prevista

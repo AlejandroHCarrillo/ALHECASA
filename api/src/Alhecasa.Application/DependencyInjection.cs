@@ -1,6 +1,8 @@
 using Alhecasa.Application.Agencies;
 using Alhecasa.Application.Auth;
+using Alhecasa.Application.Billing;
 using Alhecasa.Application.Common;
+using Alhecasa.Application.Dashboard;
 using Alhecasa.Application.Inquiries;
 using Alhecasa.Application.Properties;
 using Alhecasa.Application.Users;
@@ -25,6 +27,10 @@ public static class DependencyInjection
         services.AddScoped<IPublicPropertyService, PublicPropertyService>();
         services.AddScoped<IPublicInquiryService, PublicInquiryService>();
         services.AddScoped<IInquiryService, InquiryService>();
+        services.AddScoped<IEntitlementService, EntitlementService>();
+        services.AddScoped<IPlanService, PlanService>();
+        services.AddScoped<IBillingService, BillingService>();
+        services.AddScoped<IDashboardService, DashboardService>();
 
         return services;
     }

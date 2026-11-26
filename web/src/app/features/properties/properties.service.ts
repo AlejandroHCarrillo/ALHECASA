@@ -68,6 +68,11 @@ export class PropertiesService {
     return this.http.post<Property>(`${this.propertiesUrl}/${id}/images`, body);
   }
 
+  /** Destaca o quita el destacado de una propiedad publicada; usa un lugar del paquete de destacados de la cuenta. */
+  setFeatured(id: string, featured: boolean): Observable<Property> {
+    return this.http.put<Property>(`${this.propertiesUrl}/${id}/featured`, { featured });
+  }
+
   delete(id: string): Observable<void> {
     return this.http.delete<void>(`${this.propertiesUrl}/${id}`);
   }

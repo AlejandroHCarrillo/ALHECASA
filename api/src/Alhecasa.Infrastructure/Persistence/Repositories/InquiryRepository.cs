@@ -1,7 +1,9 @@
 using Alhecasa.Application.Abstractions;
 using Alhecasa.Application.Common;
+using Alhecasa.Application.Dashboard;
 using Alhecasa.Application.Inquiries;
 using Alhecasa.Domain.Entities;
+using Alhecasa.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Alhecasa.Infrastructure.Persistence.Repositories;
@@ -44,6 +46,29 @@ internal sealed class InquiryRepository(AlhecasaDbContext db) : IInquiryReposito
 
         return new PagedResult<Inquiry>(items, query.Page, query.PageSize, total);
     }
+
+    public async Task<InquiryStats> GetStatsAsync(Guid agencyId, DateTimeOffset since, CancellationToken cancellationToken = default)
+    {
+        var byStatus = await db.Inquiries.AsNoTracking()
+            .Where(i => i.AgencyId == agencyId)
+            .GroupBy(i => i.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        var recent = await db.Inquiries.AsNoTracking()
+            .CountAsync(i => i.AgencyId == agencyId && i.CreatedAt >= since, cancellationToken);
+
+        int Of(InquiryStatus status) => byStatus.Where(r => r.Status == status).Sum(r => r.Count);
+
+        return new InquiryStats(Of(InquiryStatus.New), Of(InquiryStatus.InProgress), Of(InquiryStatus.Closed), recent);
+    }
+
+    public async Task<IReadOnlyList<Inquiry>> ListLatestNewAsync(Guid agencyId, int count, CancellationToken cancellationToken = default) =>
+        await db.Inquiries.AsNoTracking()
+            .Where(i => i.AgencyId == agencyId && i.Status == InquiryStatus.New)
+            .OrderByDescending(i => i.CreatedAt).ThenByDescending(i => i.Id)
+            .Take(count)
+            .ToListAsync(cancellationToken);
 
     public async Task AddAsync(Inquiry inquiry, CancellationToken cancellationToken = default) =>
         await db.Inquiries.AddAsync(inquiry, cancellationToken);

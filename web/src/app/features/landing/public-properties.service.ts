@@ -29,14 +29,17 @@ export interface PublicProperty {
   /** Imágenes en orden de galería; la primera es la portada. */
   imageIds: string[];
   agencyName: string | null;
+  /** Para listar todas las publicaciones de la inmobiliaria. Nulo si publica un particular: es anónimo y no tiene página. */
+  agencyId: string | null;
   parkingSpaces: number | null;
   petsAllowed: boolean;
   furnished: boolean;
   amenities: Amenity[];
+  /** Anuncio destacado: la portada lo muestra primero y con una etiqueta. */
+  isFeatured: boolean;
 }
 
-/** Filtros de la portada: los básicos más los avanzados. Cadena vacía, 
-ull o alse significan «sin filtro». */
+/** Filtros de la portada: los básicos más los avanzados. Cadena vacía, `null` o `false` significan «sin filtro». */
 export interface PublicPropertyFilters extends AdvancedCriteria {
   operation: OperationType | '';
   location: string;
@@ -86,5 +89,11 @@ export class PublicPropertiesService {
       params = params.set('location', filters.location.trim());
     }
     return this.http.get<PagedResult<PublicProperty>>(this.url, { params: appendAdvancedParams(params, filters) });
+  }
+
+  /** Todas las publicaciones activas de una inmobiliaria con nombre (no de un particular), las más recientes primero. */
+  getByAgency(agencyId: string, page: number, pageSize: number): Observable<PagedResult<PublicProperty>> {
+    const params = new HttpParams().set('agencyId', agencyId).set('page', page).set('pageSize', pageSize);
+    return this.http.get<PagedResult<PublicProperty>>(this.url, { params });
   }
 }

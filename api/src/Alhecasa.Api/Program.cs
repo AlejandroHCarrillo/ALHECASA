@@ -143,6 +143,14 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
+// La pasarela es una simulación: aprueba cualquier tarjeta de prueba sin cobrar, así que fuera de Desarrollo cualquier
+// administrador podría contratar planes gratis. Hay que pedir explícitamente que se ejecute así.
+if (!app.Environment.IsDevelopment() && !app.Configuration.GetValue<bool>("Payments:AllowSimulated"))
+{
+    throw new InvalidOperationException(
+        "The payment gateway is simulated and would grant plans without charging. Integrate the real gateway, or set Payments:AllowSimulated=true to run the simulation outside Development.");
+}
+
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
