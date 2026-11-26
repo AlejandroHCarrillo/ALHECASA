@@ -24,6 +24,12 @@ export const routes: Routes = [
     title: 'Publicaciones de la inmobiliaria · ALHECASA',
     loadComponent: () => import('./features/agency-listings/agency-listings').then((m) => m.AgencyListings),
   },
+  // Calculadora hipotecaria: pública, no depende de ninguna propiedad.
+  {
+    path: 'calculadora-hipotecaria',
+    title: 'Calculadora hipotecaria · ALHECASA',
+    loadComponent: () => import('./features/mortgage/mortgage-page').then((m) => m.MortgagePage),
+  },
   {
     path: 'login',
     canActivate: [guestGuard],

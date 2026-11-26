@@ -1,0 +1,436 @@
+@let errs = errors();
+
+<section class="space-y-4" aria-label="Calculadora hipotecaria" data-testid="mortgage-calculator">
+  <div role="tablist" class="tabs tabs-box w-fit">
+    <button
+      type="button"
+      role="tab"
+      class="tab"
+      [class.tab-active]="mode() === 'payment'"
+      [attr.aria-selected]="mode() === 'payment'"
+      data-testid="mode-payment"
+      (click)="setMode('payment')"
+    >
+      Mi mensualidad
+    </button>
+    <button
+      type="button"
+      role="tab"
+      class="tab"
+      [class.tab-active]="mode() === 'afford'"
+      [attr.aria-selected]="mode() === 'afford'"
+      data-testid="mode-afford"
+      (click)="setMode('afford')"
+    >
+      Cuánto me alcanza
+    </button>
+  </div>
+
+  <div class="grid gap-6" [class.lg:grid-cols-2]="!compact()">
+    <!-- Datos del crédito -->
+    <form [formGroup]="form" class="space-y-3" novalidate (submit)="$event.preventDefault()">
+      @if (mode() === 'payment') {
+        <div class="grid gap-3" [class.sm:grid-cols-2]="!compact()">
+          <div class="form-control min-w-0" [class.sm:col-span-2]="!compact()">
+            <label class="mb-1 block text-sm font-medium leading-snug" for="mortgage-price">Precio de la propiedad</label>
+            <div class="flex gap-2">
+              <input
+                id="mortgage-price"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                step="any"
+                class="input input-bordered w-full"
+                formControlName="price"
+                placeholder="2000000"
+                [class.input-error]="errs['price']"
+                [attr.aria-invalid]="errs['price'] ? 'true' : null"
+              />
+              @if (!compact()) {
+                <select class="select select-bordered w-28" formControlName="currency" aria-label="Moneda" data-testid="currency">
+                  @for (code of currencies; track code) {
+                    <option [value]="code">{{ code }}</option>
+                  }
+                </select>
+              }
+            </div>
+            @if (errs['price']; as message) {
+              <span class="mt-1 text-sm text-error" data-testid="error-price">{{ message }}</span>
+            }
+          </div>
+
+          <div class="form-control min-w-0">
+            <label class="mb-1 block text-sm font-medium leading-snug" for="mortgage-down-amount">Enganche</label>
+            <input
+              id="mortgage-down-amount"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="any"
+              class="input input-bordered w-full"
+              formControlName="downPaymentAmount"
+              [class.input-error]="errs['downPaymentAmount']"
+              [attr.aria-invalid]="errs['downPaymentAmount'] ? 'true' : null"
+            />
+            @if (errs['downPaymentAmount']; as message) {
+              <span class="mt-1 text-sm text-error" data-testid="error-downPaymentAmount">{{ message }}</span>
+            }
+          </div>
+
+          <div class="form-control min-w-0">
+            <label class="mb-1 block text-sm font-medium leading-snug" for="mortgage-down-percent">Enganche (% del precio)</label>
+            <input
+              id="mortgage-down-percent"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              max="99.99"
+              step="any"
+              class="input input-bordered w-full"
+              formControlName="downPaymentPercent"
+              [class.input-error]="errs['downPaymentPercent']"
+              [attr.aria-invalid]="errs['downPaymentPercent'] ? 'true' : null"
+            />
+            @if (errs['downPaymentPercent']; as message) {
+              <span class="mt-1 text-sm text-error" data-testid="error-downPaymentPercent">{{ message }}</span>
+            }
+          </div>
+        </div>
+      }
+
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div class="form-control min-w-0">
+          <label class="mb-1 block text-sm font-medium leading-snug" for="mortgage-rate">Tasa de interés anual (%)</label>
+          <input
+            id="mortgage-rate"
+            type="number"
+            inputmode="decimal"
+            min="0"
+            [max]="limits.maxAnnualRate"
+            step="any"
+            class="input input-bordered w-full"
+            formControlName="annualRate"
+            [class.input-error]="errs['annualRate']"
+            [attr.aria-invalid]="errs['annualRate'] ? 'true' : null"
+          />
+          @if (errs['annualRate']; as message) {
+            <span class="mt-1 text-sm text-error" data-testid="error-annualRate">{{ message }}</span>
+          }
+        </div>
+
+        <div class="form-control min-w-0">
+          <label class="mb-1 block text-sm font-medium leading-snug" for="mortgage-years">Plazo (años)</label>
+          <input
+            id="mortgage-years"
+            type="number"
+            inputmode="numeric"
+            [min]="limits.minYears"
+            [max]="limits.maxYears"
+            step="1"
+            class="input input-bordered w-full"
+            formControlName="years"
+            [class.input-error]="errs['years']"
+            [attr.aria-invalid]="errs['years'] ? 'true' : null"
+          />
+          @if (errs['years']; as message) {
+            <span class="mt-1 text-sm text-error" data-testid="error-years">{{ message }}</span>
+          }
+        </div>
+      </div>
+      <p class="text-xs text-base-content/60">La tasa es un ejemplo editable: pon la que te ofrezca tu institución.</p>
+
+      <details class="collapse collapse-arrow border border-base-300 bg-base-100" data-testid="costs">
+        <summary class="collapse-title text-sm font-semibold">Gastos opcionales</summary>
+        <div class="collapse-content grid gap-3 sm:grid-cols-2">
+          @if (mode() === 'payment') {
+            <div class="form-control min-w-0">
+              <label class="mb-1 block text-sm font-medium leading-snug" for="mortgage-opening">Comisión por apertura (% del crédito)</label>
+              <input
+                id="mortgage-opening"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                max="100"
+                step="any"
+                class="input input-bordered w-full"
+                formControlName="openingFeePercent"
+                [class.input-error]="errs['openingFeePercent']"
+              />
+              @if (errs['openingFeePercent']; as message) {
+                <span class="mt-1 text-sm text-error" data-testid="error-openingFeePercent">{{ message }}</span>
+              }
+            </div>
+
+            <div class="form-control min-w-0">
+              <label class="mb-1 block text-sm font-medium leading-snug" for="mortgage-closing">Escrituración y notario (% del precio)</label>
+              <input
+                id="mortgage-closing"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                max="100"
+                step="any"
+                class="input input-bordered w-full"
+                formControlName="closingCostsPercent"
+                [class.input-error]="errs['closingCostsPercent']"
+              />
+              @if (errs['closingCostsPercent']; as message) {
+                <span class="mt-1 text-sm text-error" data-testid="error-closingCostsPercent">{{ message }}</span>
+              }
+            </div>
+
+            <div class="form-control min-w-0">
+              <label class="mb-1 block text-sm font-medium leading-snug" for="mortgage-appraisal">Avalúo</label>
+              <input
+                id="mortgage-appraisal"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                step="any"
+                class="input input-bordered w-full"
+                formControlName="appraisal"
+                [class.input-error]="errs['appraisal']"
+              />
+              @if (errs['appraisal']; as message) {
+                <span class="mt-1 text-sm text-error" data-testid="error-appraisal">{{ message }}</span>
+              }
+            </div>
+          }
+
+          <div class="form-control min-w-0">
+            <label class="mb-1 block text-sm font-medium leading-snug" for="mortgage-insurance">Seguro (monto mensual)</label>
+            <input
+              id="mortgage-insurance"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="any"
+              class="input input-bordered w-full"
+              formControlName="monthlyInsurance"
+              [class.input-error]="errs['monthlyInsurance']"
+            />
+            @if (errs['monthlyInsurance']; as message) {
+              <span class="mt-1 text-sm text-error" data-testid="error-monthlyInsurance">{{ message }}</span>
+            }
+          </div>
+        </div>
+      </details>
+    </form>
+
+    <!-- Resultados -->
+    <div class="space-y-4" aria-live="polite">
+      @if (mode() === 'payment') {
+        @if (summary(); as s) {
+          <div class="rounded-box bg-primary/10 p-4 text-center">
+            <p class="text-sm text-base-content/70">Mensualidad estimada</p>
+            <p class="font-display text-4xl font-bold text-primary" data-testid="result-payment">{{ money(s.monthlyPayment) }}</p>
+            @if (totalMonthly() > s.monthlyPayment) {
+              <p class="mt-1 text-sm text-base-content/70">
+                Con seguro: <span class="font-semibold" data-testid="result-payment-insurance">{{ money(totalMonthly()) }}</span>
+              </p>
+            }
+          </div>
+
+          <dl class="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <dt class="text-base-content/60">Monto del crédito</dt>
+              <dd class="font-semibold" data-testid="result-loan">{{ money(s.principal) }}</dd>
+            </div>
+            <div>
+              <dt class="text-base-content/60">Total a pagar</dt>
+              <dd class="font-semibold" data-testid="result-total-paid">{{ money(s.totalPaid) }}</dd>
+            </div>
+            <div>
+              <dt class="text-base-content/60">Intereses totales</dt>
+              <dd class="font-semibold" data-testid="result-interest">{{ money(s.totalInterest) }}</dd>
+            </div>
+            <div>
+              <dt class="text-base-content/60">Intereses por cada peso prestado</dt>
+              <dd class="font-semibold" data-testid="result-interest-ratio">{{ money(s.interestRatio) }}</dd>
+            </div>
+            <div class="col-span-2 border-t border-base-200 pt-3">
+              <dt class="text-base-content/60">Para empezar necesitas (enganche y gastos)</dt>
+              <dd class="text-lg font-semibold" data-testid="result-upfront">{{ money(upfront().total) }}</dd>
+              <dd class="text-xs text-base-content/60" data-testid="result-upfront-detail">
+                Enganche {{ money(upfront().downPayment) }}
+                @if (upfront().openingFee > 0) {
+                  · apertura {{ money(upfront().openingFee) }}
+                }
+                @if (upfront().closingCosts > 0) {
+                  · escrituración {{ money(upfront().closingCosts) }}
+                }
+                @if (upfront().appraisal > 0) {
+                  · avalúo {{ money(upfront().appraisal) }}
+                }
+              </dd>
+            </div>
+          </dl>
+
+          <div class="space-y-1">
+            <p class="text-sm text-base-content/70">De lo que pagas en total</p>
+            <div class="flex h-4 w-full overflow-hidden rounded-full bg-base-200" role="img" [attr.aria-label]="'Capital ' + percent(split().principal) + ' e intereses ' + percent(split().interest)" data-testid="split">
+              <span class="h-full bg-primary" [style.width.%]="split().principal" data-testid="bar-capital"></span>
+              <span class="h-full bg-warning" [style.width.%]="split().interest" data-testid="bar-interest"></span>
+            </div>
+            <p class="flex flex-wrap justify-between gap-x-4 text-xs text-base-content/70">
+              <span><span class="mr-1 inline-block size-2 rounded-full bg-primary"></span>Capital {{ percent(split().principal) }}</span>
+              <span><span class="mr-1 inline-block size-2 rounded-full bg-warning"></span>Intereses {{ percent(split().interest) }}</span>
+            </p>
+          </div>
+
+          <div class="space-y-2">
+            <button type="button" class="btn btn-outline btn-sm" data-testid="schedule-toggle" [attr.aria-expanded]="showSchedule()" (click)="toggleSchedule()">
+              <i class="fa-solid" [class.fa-chevron-down]="!showSchedule()" [class.fa-chevron-up]="showSchedule()" aria-hidden="true"></i>
+              {{ showSchedule() ? 'Ocultar tabla de amortización' : 'Ver tabla de amortización' }}
+            </button>
+
+            @if (showSchedule()) {
+              <div class="space-y-2" data-testid="schedule">
+                <div class="join" role="group" aria-label="Detalle de la tabla">
+                  <button type="button" class="btn btn-xs join-item" [class.btn-active]="scheduleView() === 'year'" data-testid="schedule-view-year" (click)="setScheduleView('year')">Por año</button>
+                  <button type="button" class="btn btn-xs join-item" [class.btn-active]="scheduleView() === 'month'" data-testid="schedule-view-month" (click)="setScheduleView('month')">Mes a mes</button>
+                </div>
+
+                <div class="max-h-96 overflow-auto rounded-box border border-base-300">
+                  <table class="table table-zebra table-sm">
+                    <thead class="sticky top-0 bg-base-100">
+                      <tr>
+                        <th>{{ scheduleView() === 'year' ? 'Año' : 'Pago' }}</th>
+                        <th class="text-right">Pagos</th>
+                        <th class="text-right">Capital</th>
+                        <th class="text-right">Intereses</th>
+                        <th class="text-right">Saldo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @if (scheduleView() === 'year') {
+                        @for (row of yearly(); track row.year) {
+                          <tr data-testid="schedule-row">
+                            <td>{{ row.year }}</td>
+                            <td class="text-right">{{ money(row.payment) }}</td>
+                            <td class="text-right">{{ money(row.principal) }}</td>
+                            <td class="text-right">{{ money(row.interest) }}</td>
+                            <td class="text-right">{{ money(row.balance) }}</td>
+                          </tr>
+                        }
+                      } @else {
+                        @for (row of schedule(); track row.month) {
+                          <tr data-testid="schedule-row">
+                            <td>{{ row.month }}</td>
+                            <td class="text-right">{{ money(row.payment) }}</td>
+                            <td class="text-right">{{ money(row.principal) }}</td>
+                            <td class="text-right">{{ money(row.interest) }}</td>
+                            <td class="text-right">{{ money(row.balance) }}</td>
+                          </tr>
+                        }
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="rounded-box bg-base-200 p-4 text-sm text-base-content/70" data-testid="no-result">
+            Escribe el precio, el enganche, la tasa y el plazo para ver tu mensualidad.
+          </p>
+        }
+      } @else {
+        <form [formGroup]="affordForm" class="space-y-3" novalidate (submit)="$event.preventDefault()">
+          <div class="form-control min-w-0">
+            <label class="mb-1 block text-sm font-medium leading-snug" for="mortgage-income">Ingreso mensual</label>
+            <input
+              id="mortgage-income"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              step="any"
+              class="input input-bordered w-full"
+              formControlName="monthlyIncome"
+              [class.input-error]="errs['monthlyIncome']"
+              [attr.aria-invalid]="errs['monthlyIncome'] ? 'true' : null"
+            />
+            @if (errs['monthlyIncome']; as message) {
+              <span class="mt-1 text-sm text-error" data-testid="error-monthlyIncome">{{ message }}</span>
+            }
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div class="form-control min-w-0">
+              <label class="mb-1 block text-sm font-medium leading-snug" for="mortgage-ratio">Parte del ingreso para el crédito (%)</label>
+              <input
+                id="mortgage-ratio"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                max="100"
+                step="any"
+                class="input input-bordered w-full"
+                formControlName="debtRatioPercent"
+                [class.input-error]="errs['debtRatioPercent']"
+                [attr.aria-invalid]="errs['debtRatioPercent'] ? 'true' : null"
+              />
+              @if (errs['debtRatioPercent']; as message) {
+                <span class="mt-1 text-sm text-error" data-testid="error-debtRatioPercent">{{ message }}</span>
+              }
+            </div>
+
+            <div class="form-control min-w-0">
+              <label class="mb-1 block text-sm font-medium leading-snug" for="mortgage-afford-down">Enganche con el que cuentas</label>
+              <input
+                id="mortgage-afford-down"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                step="any"
+                class="input input-bordered w-full"
+                formControlName="downPayment"
+                [class.input-error]="errs['affordDownPayment']"
+              />
+              @if (errs['affordDownPayment']; as message) {
+                <span class="mt-1 text-sm text-error" data-testid="error-affordDownPayment">{{ message }}</span>
+              }
+            </div>
+          </div>
+        </form>
+
+        @if (affordability(); as result) {
+          <div class="rounded-box bg-primary/10 p-4 text-center">
+            <p class="text-sm text-base-content/70">Crédito máximo estimado</p>
+            <p class="font-display text-4xl font-bold text-primary" data-testid="afford-max-loan">{{ money(result.maxLoan) }}</p>
+          </div>
+
+          <dl class="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <dt class="text-base-content/60">Mensualidad máxima</dt>
+              <dd class="font-semibold" data-testid="afford-max-payment">{{ money(result.maxMonthlyPayment) }}</dd>
+            </div>
+            <div>
+              <dt class="text-base-content/60">Precio máximo de propiedad</dt>
+              <dd class="font-semibold" data-testid="afford-max-price">{{ money(result.maxPrice) }}</dd>
+            </div>
+          </dl>
+
+          @if (fits() !== null) {
+            <p class="rounded-box p-3 text-sm" [class]="fits() ? 'bg-success/15' : 'bg-warning/20'" data-testid="afford-fit">
+              @if (fits()) {
+                Con estos datos, esta propiedad ({{ money(form.controls.price.value ?? 0) }}) entra en tu presupuesto.
+              } @else {
+                Con estos datos, esta propiedad ({{ money(form.controls.price.value ?? 0) }}) queda por encima de tu presupuesto.
+              }
+            </p>
+          }
+          <p class="text-xs text-base-content/60">Usa la tasa, el plazo y el seguro de los datos del crédito.</p>
+        } @else {
+          <p class="rounded-box bg-base-200 p-4 text-sm text-base-content/70" data-testid="no-afford">
+            Escribe tu ingreso mensual, la tasa y el plazo para ver cuánto crédito te alcanza.
+          </p>
+        }
+      }
+
+      <p class="text-xs text-base-content/60" data-testid="disclaimer">
+        Estimación informativa. No es una oferta de crédito ni incluye el CAT, que depende de cada institución.
+      </p>
+    </div>
+  </div>
+</section>

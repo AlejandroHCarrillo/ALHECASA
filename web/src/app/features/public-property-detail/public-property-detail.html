@@ -238,6 +238,24 @@
           </section>
         }
 
+        @if (p.operation === 'Sale') {
+          <section class="space-y-3" data-testid="mortgage">
+            <div class="flex flex-wrap items-end justify-between gap-2">
+              <h2 class="text-xl font-bold">Calcula tu mensualidad</h2>
+              <a
+                [routerLink]="['/calculadora-hipotecaria']"
+                [queryParams]="{ precio: p.price, moneda: p.currency }"
+                class="link link-hover text-sm"
+                data-testid="mortgage-full"
+              >
+                Abrir en página completa
+                <i class="fa-solid fa-arrow-up-right-from-square ml-1" aria-hidden="true"></i>
+              </a>
+            </div>
+            <app-mortgage-calculator [price]="p.price" [currency]="p.currency" [compact]="true" />
+          </section>
+        }
+
       </article>
     }
   </main>

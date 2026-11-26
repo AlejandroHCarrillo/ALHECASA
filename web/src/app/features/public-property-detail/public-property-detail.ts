@@ -10,6 +10,7 @@ import { ErrorAlert } from '../../shared/components/error-alert/error-alert';
 import { LikeButton } from '../../shared/components/like-button/like-button';
 import { LocationMap } from '../../shared/components/location-map/location-map';
 import { Logo } from '../../shared/components/logo/logo';
+import { MortgageCalculator } from '../../shared/components/mortgage-calculator/mortgage-calculator';
 import { resolveApiError } from '../../shared/utils/api-error';
 import { imageUrl } from '../../shared/utils/image-url';
 import { PublicProperty, PublicPropertiesService } from '../landing/public-properties.service';
@@ -22,7 +23,7 @@ import { AMENITY_LABELS, OPERATION_LABELS, PROPERTY_TYPE_LABELS } from '../prope
  */
 @Component({
   selector: 'app-public-property-detail',
-  imports: [RouterLink, DecimalPipe, ErrorAlert, InquiryFormModal, LikeButton, LocationMap, Logo],
+  imports: [RouterLink, DecimalPipe, ErrorAlert, InquiryFormModal, LikeButton, LocationMap, Logo, MortgageCalculator],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './public-property-detail.html',
 })

@@ -418,6 +418,16 @@ describe('Landing', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="register-header"]')?.textContent).toContain('Publica gratis');
     expect(fixture.nativeElement.querySelector('[data-testid="register-hero"]')?.textContent).toContain('Publica tu anuncio gratis');
   });
+
+  it('links to the mortgage calculator from the header', async () => {
+    const fixture = await open();
+    http.expectOne((r) => r.url === URL).flush(page([]));
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector('[data-testid="mortgage-link"]') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/calculadora-hipotecaria');
+    expect(link.textContent).toContain('Calculadora');
+  });
 });
 
 describe('guestMatch: la portada solo coincide sin sesión', () => {

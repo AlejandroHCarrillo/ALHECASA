@@ -277,4 +277,50 @@ describe('PublicPropertyDetail', () => {
     plain.detectChanges();
     expect(root(plain).querySelector('[data-testid="featured-badge"]')).toBeNull();
   });
+
+  describe('calculadora hipotecaria', () => {
+    const field = (harness: RouterTestingHarness, id: string) => root(harness).querySelector(`#${id}`) as HTMLInputElement;
+
+    it('is offered for a sale, preloaded with the price of the publication', async () => {
+      const harness = await open();
+      http.expectOne(detailUrl('p-1')).flush(sample({ price: 3_000_000, currency: 'MXN' }));
+      harness.detectChanges();
+      harness.detectChanges();
+
+      const section = root(harness).querySelector('[data-testid="mortgage"]') as HTMLElement;
+      expect(section.textContent).toContain('Calcula tu mensualidad');
+      expect(field(harness, 'mortgage-price').value).toBe('3000000');
+      expect(section.querySelector('[data-testid="result-payment"]')).not.toBeNull();
+      // La moneda es la de la publicación: no se ofrece cambiarla aquí.
+      expect(section.querySelector('[data-testid="currency"]')).toBeNull();
+    });
+
+    it('formats the result in the currency of the publication', async () => {
+      const harness = await open();
+      http.expectOne(detailUrl('p-1')).flush(sample({ price: 200_000, currency: 'USD' }));
+      harness.detectChanges();
+      harness.detectChanges();
+
+      expect(root(harness).querySelector('[data-testid="result-payment"]')?.textContent).toContain('USD');
+    });
+
+    it('links to the full page carrying the price and the currency', async () => {
+      const harness = await open();
+      http.expectOne(detailUrl('p-1')).flush(sample({ price: 200_000, currency: 'USD' }));
+      harness.detectChanges();
+
+      const link = root(harness).querySelector('[data-testid="mortgage-full"]') as HTMLAnchorElement;
+      expect(link.getAttribute('href')).toBe('/calculadora-hipotecaria?precio=200000&moneda=USD');
+    });
+
+    it('is not offered for a rental', async () => {
+      const harness = await open();
+      http.expectOne(detailUrl('p-1')).flush(sample({ operation: 'Rent', price: 25_000 }));
+      harness.detectChanges();
+      harness.detectChanges();
+
+      expect(root(harness).querySelector('[data-testid="mortgage"]')).toBeNull();
+      expect(root(harness).querySelector('#mortgage-price')).toBeNull();
+    });
+  });
 });
