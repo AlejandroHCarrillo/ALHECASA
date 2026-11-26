@@ -1,5 +1,6 @@
 using Alhecasa.Application.Common;
 using Alhecasa.Application.Dashboard;
+using Alhecasa.Application.Locations;
 using Alhecasa.Application.Properties;
 using Alhecasa.Domain.Entities;
 
@@ -39,6 +40,15 @@ public interface IPropertyRepository
 
     /// <summary>Cuántas propiedades no eliminadas tiene una inmobiliaria en cada estado, y cuántas están destacadas en este momento.</summary>
     Task<PropertyStats> GetStatsAsync(Guid agencyId, DateTimeOffset now, CancellationToken cancellationToken = default);
+
+    /// <summary>Cuántas propiedades publicadas (con las reglas de visibilidad del catálogo público) hay por ciudad, colonia y operación. Solo las enlazadas al catálogo de ubicaciones.</summary>
+    Task<IReadOnlyList<ZoneCount>> GetPublishedZoneCountsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Las propiedades publicadas más recientes (hasta <paramref name="limit"/>), para el mapa del sitio.</summary>
+    Task<IReadOnlyList<SitemapProperty>> GetPublishedForSitemapAsync(int limit, CancellationToken cancellationToken = default);
+
+    /// <summary>Propiedades que todavía no están enlazadas al catálogo de ubicaciones (las anteriores a él), con seguimiento de cambios y sin filtros de inmobiliaria.</summary>
+    Task<IReadOnlyList<Property>> ListWithoutLocationAsync(CancellationToken cancellationToken = default);
 
     Task AddAsync(Property entity, CancellationToken cancellationToken = default);
 }

@@ -1,6 +1,7 @@
 using Alhecasa.Application.Abstractions;
 using Alhecasa.Application.Billing;
 using Alhecasa.Application.Common;
+using Alhecasa.Application.Locations;
 using Alhecasa.Application.Properties;
 using Alhecasa.Domain.Common;
 using Alhecasa.Domain.Entities;
@@ -32,7 +33,8 @@ public sealed class PropertyFeaturedServiceTests
         new CreatePropertyRequestValidator(),
         new UpdatePropertyRequestValidator(),
         _clock,
-        new EntitlementService(_subscriptions, _plans, _properties, _clock, new AccountLimits(3)));
+        new EntitlementService(_subscriptions, _plans, _properties, _clock, new AccountLimits(3)),
+        new LocationResolver(new FakeLocationRepository()));
 
     private PropertyService CompanyService() => CreateService(FakeCurrentUser.AgencyAdmin(_company.Id));
 

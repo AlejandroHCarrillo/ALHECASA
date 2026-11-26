@@ -121,7 +121,16 @@
           class="input input-bordered w-full"
           formControlName="neighborhood"
           [attr.maxlength]="limits.neighborhood"
+          list="neighborhood-options"
+          autocomplete="off"
+          (focus)="suggestNeighborhoods()"
+          (input)="suggestNeighborhoods()"
         />
+        <datalist id="neighborhood-options">
+          @for (option of neighborhoodOptions(); track option) {
+            <option [value]="option"></option>
+          }
+        </datalist>
       </div>
 
       <div class="form-control">
@@ -133,7 +142,16 @@
           formControlName="city"
           [attr.maxlength]="limits.city"
           [class.input-error]="hasError('city')"
+          list="city-options"
+          autocomplete="off"
+          (focus)="suggestCities()"
+          (input)="suggestCities()"
         />
+        <datalist id="city-options">
+          @for (option of cityOptions(); track option) {
+            <option [value]="option"></option>
+          }
+        </datalist>
         @if (hasError('city')) {
           <span class="mt-1 text-sm text-error">La ciudad es obligatoria.</span>
         }
@@ -148,7 +166,15 @@
           formControlName="state"
           [attr.maxlength]="limits.state"
           [class.input-error]="hasError('state')"
+          list="state-options"
+          autocomplete="off"
+          (focus)="suggestStates()"
         />
+        <datalist id="state-options">
+          @for (option of stateOptions(); track option) {
+            <option [value]="option"></option>
+          }
+        </datalist>
         @if (hasError('state')) {
           <span class="mt-1 text-sm text-error">El estado es obligatorio.</span>
         }
@@ -164,6 +190,11 @@
           [attr.maxlength]="limits.postalCode"
         />
       </div>
+
+      <p class="text-sm text-base-content/60 sm:col-span-2" data-testid="location-hint">
+        Elige el estado, la ciudad y la colonia de las sugerencias cuando aparezcan: así tu anuncio se agrupa con los de la misma zona en su
+        página pública. Si no está, escríbela y se agregará.
+      </p>
     </div>
 
     <div class="form-control">

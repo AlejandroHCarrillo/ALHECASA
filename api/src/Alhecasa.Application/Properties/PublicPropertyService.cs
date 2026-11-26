@@ -34,7 +34,9 @@ public sealed record PublicPropertyDto(
     bool Furnished,
     IReadOnlyList<Amenity> Amenities,
     bool IsFeatured,
-    Guid? AgencyId);
+    Guid? AgencyId,
+    string? CitySlug = null,
+    string? NeighborhoodSlug = null);
 
 /// <summary>Contenido de una imagen listo para enviarse al visitante.</summary>
 public sealed record ImageContent(Stream Content, string ContentType);
@@ -45,6 +47,8 @@ public sealed record ImageContent(Stream Content, string ContentType);
 /// Solo las publicaciones de esta inmobiliaria. Un particular es anónimo, así que su espacio no se puede listar por aquí: su identificador no se publica y,
 /// si alguien lo conoce, tampoco devuelve nada.
 /// </param>
+/// <param name="CitySlug">Solo las de esta ciudad del catálogo de ubicaciones (su identificador en la dirección web, p. ej. <c>guadalajara</c>).</param>
+/// <param name="NeighborhoodSlug">Solo las de esta colonia; exige <paramref name="CitySlug"/>, porque la colonia se identifica dentro de su ciudad.</param>
 /// <param name="Ids">
 /// Si se envía, solo se devuelven estas propiedades (siempre que además estén publicadas). Lo usa la portada para
 /// «Mis favoritas», que el visitante guarda en su navegador. Vacío equivale a no filtrar por identificador.
@@ -68,7 +72,9 @@ public sealed record PublicPropertyQuery(
     bool? Furnished = null,
     IReadOnlyList<Amenity>? Amenities = null,
     PropertySort Sort = PropertySort.Recent,
-    Guid? AgencyId = null) : IPropertyCriteria
+    Guid? AgencyId = null,
+    string? CitySlug = null,
+    string? NeighborhoodSlug = null) : IPropertyCriteria
 {
     public const int MaxPageSize = PropertyListQuery.MaxPageSize;
 
@@ -80,8 +86,18 @@ public sealed record PublicPropertyQuery(
     public PublicPropertyQuery Normalize()
     {
         PropertyCriteriaRules.Validate(this);
+
+        var citySlug = Slug.From(CitySlug);
+        var neighborhoodSlug = Slug.From(NeighborhoodSlug);
+        if (neighborhoodSlug.Length > 0 && citySlug.Length == 0)
+        {
+            throw new DomainException("A neighborhood needs its city.");
+        }
+
         return this with
         {
+            CitySlug = citySlug.Length == 0 ? null : citySlug,
+            NeighborhoodSlug = neighborhoodSlug.Length == 0 ? null : neighborhoodSlug,
             Location = string.IsNullOrWhiteSpace(Location) ? null : Location.Trim(),
             Page = Math.Max(1, Page),
             PageSize = Math.Clamp(PageSize, 1, MaxPageSize),
@@ -174,7 +190,9 @@ public sealed class PublicPropertyService(IPropertyRepository properties, IImage
         property.Furnished,
         AmenityFlags.ToList(property.Amenities),
         property.IsFeaturedAt(now),
-        property.Agency is { IsIndividual: false } ? property.AgencyId : null);
+        property.Agency is { IsIndividual: false } ? property.AgencyId : null,
+        property.CityLocation?.Slug,
+        property.NeighborhoodLocation?.Slug);
 
     /// <summary>
     /// Tres decimales son unos 110 m: se ve la zona en el mapa, no la puerta de la casa. La ubicación exacta, como la calle,

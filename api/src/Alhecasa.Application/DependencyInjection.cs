@@ -4,6 +4,7 @@ using Alhecasa.Application.Billing;
 using Alhecasa.Application.Common;
 using Alhecasa.Application.Dashboard;
 using Alhecasa.Application.Inquiries;
+using Alhecasa.Application.Locations;
 using Alhecasa.Application.Properties;
 using Alhecasa.Application.Users;
 using FluentValidation;
@@ -13,9 +14,10 @@ namespace Alhecasa.Application;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddApplication(this IServiceCollection services, AccountLimits? accountLimits = null)
+    public static IServiceCollection AddApplication(this IServiceCollection services, AccountLimits? accountLimits = null, SeoSettings? seo = null)
     {
         services.AddSingleton(accountLimits ?? new AccountLimits());
+        services.AddSingleton(seo ?? new SeoSettings());
         services.AddValidatorsFromAssemblyContaining<LoginRequestValidator>(includeInternalTypes: true);
 
         services.AddScoped<IAuthService, AuthService>();
@@ -32,6 +34,10 @@ public static class DependencyInjection
         services.AddScoped<IPlanService, PlanService>();
         services.AddScoped<IBillingService, BillingService>();
         services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<ILocationResolver, LocationResolver>();
+        services.AddScoped<ILocationService, LocationService>();
+        services.AddScoped<IZoneService, ZoneService>();
+        services.AddScoped<ISitemapService, SitemapService>();
 
         return services;
     }

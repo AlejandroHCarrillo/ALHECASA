@@ -1,4 +1,5 @@
 using Alhecasa.Application.Abstractions;
+using Alhecasa.Application.Locations;
 using Alhecasa.Domain.Entities;
 using Alhecasa.Domain.Enums;
 using Alhecasa.Infrastructure.Persistence;
@@ -225,6 +226,45 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             db.Properties.Add(property);
             await db.SaveChangesAsync();
         });
+        return property;
+    }
+
+    /// <summary>Agrega una propiedad ya enlazada al catálogo de ubicaciones (como la deja el servicio al guardarla).</summary>
+    public async Task<Property> AddLocatedPropertyAsync(
+        Guid agencyId,
+        string state,
+        string city,
+        string? neighborhood,
+        OperationType operation = OperationType.Sale,
+        PropertyStatus status = PropertyStatus.Published,
+        string title = "Casa de prueba")
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AlhecasaDbContext>();
+        var location = await scope.ServiceProvider.GetRequiredService<ILocationResolver>().ResolveAsync(state, city, neighborhood);
+
+        var property = new Property(agencyId, new PropertyData(
+            title,
+            null,
+            PropertyType.House,
+            operation,
+            status,
+            1_000_000m,
+            CurrencyCode.MXN,
+            null,
+            location.NeighborhoodName,
+            location.CityName,
+            location.StateName,
+            null,
+            null,
+            null,
+            null,
+            null,
+            StateId: location.StateId,
+            CityId: location.CityId,
+            NeighborhoodId: location.NeighborhoodId));
+        db.Properties.Add(property);
+        await db.SaveChangesAsync();
         return property;
     }
 

@@ -1,0 +1,17 @@
+# Páginas públicas: portada, zonas (/venta/..., /renta/...), publicaciones e inmobiliarias.
+# El área de trabajo y las cuentas no deben aparecer en los buscadores.
+User-agent: *
+Disallow: /login
+Disallow: /registro
+Disallow: /inicio
+Disallow: /propiedades
+Disallow: /galeria
+Disallow: /solicitudes
+Disallow: /usuarios
+Disallow: /mi-plan
+Disallow: /planes
+Disallow: /suscripciones
+
+# Al publicar el sitio, agrega aquí la dirección ABSOLUTA del mapa del sitio (la genera la API):
+# Sitemap: https://<tu-dominio>/api/public/sitemap.xml
+# También se puede enviar desde Google Search Console. Consulta documentacion/0-arranque.md y arquitectura.md.

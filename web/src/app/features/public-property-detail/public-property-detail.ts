@@ -2,7 +2,6 @@ import { DecimalPipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Title } from '@angular/platform-browser';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { catchError, map, of, switchMap, tap } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
@@ -10,8 +9,10 @@ import { ErrorAlert } from '../../shared/components/error-alert/error-alert';
 import { LikeButton } from '../../shared/components/like-button/like-button';
 import { LocationMap } from '../../shared/components/location-map/location-map';
 import { Logo } from '../../shared/components/logo/logo';
+import { SeoService } from '../../shared/services/seo.service';
 import { resolveApiError } from '../../shared/utils/api-error';
 import { imageUrl } from '../../shared/utils/image-url';
+import { ZoneOperation, zoneCommands } from '../zones/zone.models';
 import { PublicProperty, PublicPropertiesService } from '../landing/public-properties.service';
 import { InquiryFormModal } from './inquiry-form-modal/inquiry-form-modal';
 import { AMENITY_LABELS, OPERATION_LABELS, PROPERTY_TYPE_LABELS } from '../properties/property.models';
@@ -29,7 +30,7 @@ import { AMENITY_LABELS, OPERATION_LABELS, PROPERTY_TYPE_LABELS } from '../prope
 export class PublicPropertyDetail {
   private readonly route = inject(ActivatedRoute);
   private readonly publicProperties = inject(PublicPropertiesService);
-  private readonly title = inject(Title);
+  private readonly seo = inject(SeoService);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly auth = inject(AuthService);
 
@@ -54,6 +55,25 @@ export class PublicPropertyDetail {
   protected readonly location = computed(() => {
     const p = this.property();
     return p ? [p.neighborhood, p.city, p.state].filter(Boolean).join(', ') : '';
+  });
+
+  /** Enlaces a las páginas públicas de su ciudad y su colonia, con la misma operación que la propiedad. */
+  protected readonly zoneLinks = computed(() => {
+    const p = this.property();
+    if (!p?.citySlug) {
+      return [];
+    }
+    const sale = p.operation === 'Sale';
+    const operation: ZoneOperation = sale ? 'venta' : 'renta';
+    const word = sale ? 'en venta' : 'en renta';
+    const links = [{ label: `Propiedades ${word} en ${p.city}`, commands: zoneCommands(operation, p.citySlug) }];
+    if (p.neighborhoodSlug && p.neighborhood) {
+      links.unshift({
+        label: `Propiedades ${word} en ${p.neighborhood}`,
+        commands: zoneCommands(operation, p.citySlug, p.neighborhoodSlug),
+      });
+    }
+    return links;
   });
 
   /** Zona aproximada para el mapa; null si la propiedad no tiene ubicación. */
@@ -94,9 +114,22 @@ export class PublicPropertyDetail {
         this.loading.set(false);
         this.property.set(property);
         if (property) {
-          this.title.setTitle(`${property.title} · ALHECASA`);
+          this.updateSeo(property);
         }
       });
+  }
+
+  /** Título, descripción, dirección canónica e imagen para buscadores y para compartir la publicación. */
+  private updateSeo(property: PublicProperty): void {
+    const place = [property.neighborhood, property.city].filter(Boolean).join(', ');
+    const word = property.operation === 'Sale' ? 'en venta' : 'en renta';
+    const text = property.description?.trim() || `${PROPERTY_TYPE_LABELS[property.type]} ${word} en ${place}`;
+    this.seo.set({
+      title: `${property.title} · ALHECASA`,
+      description: text.length > 155 ? `${text.slice(0, 152).trimEnd()}...` : text,
+      path: `/publicaciones/${encodeURIComponent(property.id)}`,
+      image: property.imageIds[0] ? imageUrl(property.imageIds[0]) : undefined,
+    });
   }
 
   protected select(index: number): void {

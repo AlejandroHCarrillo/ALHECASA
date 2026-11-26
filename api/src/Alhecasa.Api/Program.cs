@@ -10,6 +10,7 @@ using Alhecasa.Application;
 using Alhecasa.Application.Abstractions;
 using Alhecasa.Application.Auth;
 using Alhecasa.Application.Common;
+using Alhecasa.Application.Locations;
 using Alhecasa.Infrastructure;
 using Alhecasa.Infrastructure.Identity;
 using Alhecasa.Infrastructure.Persistence.Seeding;
@@ -31,8 +32,13 @@ builder.Services
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
-builder.Services.AddApplication(new AccountLimits(
-    builder.Configuration.GetValue("AccountLimits:IndividualMaxProperties", new AccountLimits().IndividualMaxProperties)));
+// Dirección pública del sitio web (la del frontend): con ella se arma el mapa del sitio. Se valida al arrancar.
+var seoSettings = new SeoSettings(builder.Configuration.GetValue("Seo:SiteUrl", SeoSettings.DefaultSiteUrl) ?? SeoSettings.DefaultSiteUrl);
+_ = seoSettings.NormalizedSiteUrl();
+
+builder.Services.AddApplication(
+    new AccountLimits(builder.Configuration.GetValue("AccountLimits:IndividualMaxProperties", new AccountLimits().IndividualMaxProperties)),
+    seoSettings);
 builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddHttpContextAccessor();

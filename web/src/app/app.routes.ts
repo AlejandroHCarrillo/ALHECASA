@@ -24,6 +24,16 @@ export const routes: Routes = [
     title: 'Publicaciones de la inmobiliaria · ALHECASA',
     loadComponent: () => import('./features/agency-listings/agency-listings').then((m) => m.AgencyListings),
   },
+  // Páginas públicas por zona, con direcciones limpias para los buscadores: /venta/guadalajara y /renta/guadalajara/providencia.
+  // El título definitivo lo fija la propia página (lleva el nombre de la zona).
+  ...(['venta', 'renta'] as const).flatMap((operation) =>
+    ['', '/:neighborhood'].map((suffix) => ({
+      path: `${operation}/:city${suffix}`,
+      data: { operation },
+      title: 'Propiedades · ALHECASA',
+      loadComponent: () => import('./features/zones/zone-listings/zone-listings').then((m) => m.ZoneListings),
+    })),
+  ),
   {
     path: 'login',
     canActivate: [guestGuard],

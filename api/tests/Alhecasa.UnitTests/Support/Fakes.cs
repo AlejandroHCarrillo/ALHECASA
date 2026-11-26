@@ -3,6 +3,7 @@ using Alhecasa.Application.Auth;
 using Alhecasa.Application.Common;
 using Alhecasa.Application.Dashboard;
 using Alhecasa.Application.Inquiries;
+using Alhecasa.Application.Locations;
 using Alhecasa.Application.Properties;
 using Alhecasa.Application.Users;
 using Alhecasa.Domain.Entities;
@@ -156,9 +157,79 @@ internal sealed class FakePropertyRepository : IPropertyRepository
             mine.Count(p => p.IsFeaturedAt(now))));
     }
 
+    /// <summary>Lo que devolverá <see cref="GetPublishedZoneCountsAsync"/>: las pruebas de zonas lo fijan a mano (el conteo real lo hace el repositorio real).</summary>
+    public List<ZoneCount> ZoneCounts { get; } = [];
+
+    public List<SitemapProperty> SitemapProperties { get; } = [];
+
+    public Task<IReadOnlyList<ZoneCount>> GetPublishedZoneCountsAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ZoneCount>>(ZoneCounts.ToList());
+
+    public Task<IReadOnlyList<SitemapProperty>> GetPublishedForSitemapAsync(int limit, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<SitemapProperty>>(SitemapProperties.Take(limit).ToList());
+
+    public Task<IReadOnlyList<Property>> ListWithoutLocationAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<Property>>(Items.Where(p => !p.IsDeleted && p.CityId is null).ToList());
+
     public Task AddAsync(Property entity, CancellationToken cancellationToken = default)
     {
         Items.Add(entity);
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>Catálogo de ubicaciones en memoria. Lo agregado queda disponible al instante (no hace falta guardar).</summary>
+internal sealed class FakeLocationRepository : ILocationRepository
+{
+    public List<GeoState> States { get; } = [];
+
+    public List<GeoCity> Cities { get; } = [];
+
+    public List<GeoNeighborhood> Neighborhoods { get; } = [];
+
+    public Task<IReadOnlyList<GeoState>> ListStatesAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<GeoState>>(States.OrderBy(s => s.Slug, StringComparer.Ordinal).ToList());
+
+    public Task<GeoState?> FindStateAsync(string slug, CancellationToken cancellationToken = default) =>
+        Task.FromResult(States.FirstOrDefault(s => s.Slug == slug));
+
+    public Task<GeoCity?> FindCityAsync(Guid stateId, string slug, string stateSlug, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Cities.FirstOrDefault(c => c.StateId == stateId && (c.Slug == slug || c.Slug == $"{slug}-{stateSlug}")));
+
+    public Task<bool> CitySlugExistsAsync(string slug, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Cities.Any(c => c.Slug == slug));
+
+    public Task<GeoCity?> GetCityBySlugAsync(string slug, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Cities.FirstOrDefault(c => c.Slug == slug));
+
+    public Task<GeoNeighborhood?> FindNeighborhoodAsync(Guid cityId, string slug, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Neighborhoods.FirstOrDefault(n => n.CityId == cityId && n.Slug == slug));
+
+    public Task<IReadOnlyList<string>> SearchCityNamesAsync(Guid? stateId, string? text, int limit, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<string>>(Cities
+            .Where(c => (stateId is null || c.StateId == stateId) && (text is null || c.Name.Contains(text, StringComparison.OrdinalIgnoreCase)))
+            .Select(c => c.Name).Distinct().Order().Take(limit).ToList());
+
+    public Task<IReadOnlyList<string>> SearchNeighborhoodNamesAsync(Guid cityId, string? text, int limit, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<string>>(Neighborhoods
+            .Where(n => n.CityId == cityId && (text is null || n.Name.Contains(text, StringComparison.OrdinalIgnoreCase)))
+            .Select(n => n.Name).Order().Take(limit).ToList());
+
+    public Task AddStateAsync(GeoState state, CancellationToken cancellationToken = default)
+    {
+        States.Add(state);
+        return Task.CompletedTask;
+    }
+
+    public Task AddCityAsync(GeoCity city, CancellationToken cancellationToken = default)
+    {
+        Cities.Add(city);
+        return Task.CompletedTask;
+    }
+
+    public Task AddNeighborhoodAsync(GeoNeighborhood neighborhood, CancellationToken cancellationToken = default)
+    {
+        Neighborhoods.Add(neighborhood);
         return Task.CompletedTask;
     }
 }

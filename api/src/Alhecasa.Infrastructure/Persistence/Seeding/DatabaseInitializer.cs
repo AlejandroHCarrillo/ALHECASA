@@ -1,6 +1,8 @@
 using Alhecasa.Application.Abstractions;
 using Alhecasa.Application.Common;
+using Alhecasa.Application.Locations;
 using Alhecasa.Application.Properties;
+using Alhecasa.Domain.Common;
 using Alhecasa.Domain.Entities;
 using Alhecasa.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +21,53 @@ public static class DatabaseInitializer
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AlhecasaDbContext>();
         await db.Database.MigrateAsync(cancellationToken);
+        await LinkLocationsAsync(scope.ServiceProvider, cancellationToken);
+    }
+
+    /// <summary>
+    /// Enlaza con el catálogo de ubicaciones las propiedades que todavía no lo están (las anteriores al catálogo y las de ejemplo),
+    /// y da de alta los 32 estados de México. Es idempotente: sin propiedades por enlazar no hace nada.
+    /// </summary>
+    public static async Task LinkLocationsAsync(IServiceProvider services, CancellationToken cancellationToken = default)
+    {
+        var db = services.GetRequiredService<AlhecasaDbContext>();
+        var resolver = services.GetRequiredService<ILocationResolver>();
+        var properties = services.GetRequiredService<IPropertyRepository>();
+        var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseSeeder");
+
+        var existing = (await db.GeoStates.Select(s => s.Slug).ToListAsync(cancellationToken)).ToHashSet(StringComparer.Ordinal);
+        var missing = MexicanStates.Names.Where(name => !existing.Contains(Slug.From(name))).ToList();
+        if (missing.Count > 0)
+        {
+            db.GeoStates.AddRange(missing.Select(name => new GeoState(name)));
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        var pending = await properties.ListWithoutLocationAsync(cancellationToken);
+        var linked = 0;
+        foreach (var property in pending)
+        {
+            try
+            {
+                var location = await resolver.ResolveAsync(property.State, property.City, property.Neighborhood, cancellationToken);
+                property.SetLocation(location.StateId, location.StateName, location.CityId, location.CityName, location.NeighborhoodId, location.NeighborhoodName);
+                linked++;
+            }
+            catch (DomainException exception)
+            {
+                logger.LogWarning("Property {PropertyId} could not be linked to the location catalog: {Message}", property.Id, exception.Message);
+            }
+        }
+
+        if (db.ChangeTracker.HasChanges())
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        if (linked > 0)
+        {
+            logger.LogInformation("Linked {Count} properties to the location catalog.", linked);
+        }
     }
 
     /// <summary>Crea el administrador de plataforma y la inmobiliaria demo si están configurados y no existen.</summary>
@@ -79,6 +128,9 @@ public static class DatabaseInitializer
             await EnsureDemoCatalogAsync(db, hasher, sp.GetRequiredService<IImageStorage>(), logger, catalog,
                 sp.GetRequiredService<IHostEnvironment>().ContentRootPath, cancellationToken);
         }
+
+        // Las propiedades de ejemplo se crean sin pasar por el servicio: se enlazan al catálogo de ubicaciones aquí.
+        await LinkLocationsAsync(sp, cancellationToken);
     }
 
     /// <summary>
