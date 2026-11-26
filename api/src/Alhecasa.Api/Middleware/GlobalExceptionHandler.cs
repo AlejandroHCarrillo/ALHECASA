@@ -18,6 +18,8 @@ internal sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> log
             DomainException => (StatusCodes.Status400BadRequest, "Business rule violated"),
             NotFoundException => (StatusCodes.Status404NotFound, "Resource not found"),
             ConflictException => (StatusCodes.Status409Conflict, "Conflict"),
+            PlanLimitException => (StatusCodes.Status422UnprocessableEntity, "Plan limit reached"),
+            PaymentDeclinedException => (StatusCodes.Status402PaymentRequired, "Payment declined"),
             ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden"),
             AuthenticationFailedException => (StatusCodes.Status401Unauthorized, "Authentication failed"),
             _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred")

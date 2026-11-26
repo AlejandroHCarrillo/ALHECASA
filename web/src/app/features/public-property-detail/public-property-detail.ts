@@ -7,11 +7,15 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { catchError, map, of, switchMap, tap } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { ErrorAlert } from '../../shared/components/error-alert/error-alert';
+import { LikeButton } from '../../shared/components/like-button/like-button';
+import { LocationMap } from '../../shared/components/location-map/location-map';
 import { Logo } from '../../shared/components/logo/logo';
+import { MortgageCalculator } from '../../shared/components/mortgage-calculator/mortgage-calculator';
 import { resolveApiError } from '../../shared/utils/api-error';
 import { imageUrl } from '../../shared/utils/image-url';
 import { PublicProperty, PublicPropertiesService } from '../landing/public-properties.service';
-import { OPERATION_LABELS, PROPERTY_TYPE_LABELS } from '../properties/property.models';
+import { InquiryFormModal } from './inquiry-form-modal/inquiry-form-modal';
+import { AMENITY_LABELS, OPERATION_LABELS, PROPERTY_TYPE_LABELS } from '../properties/property.models';
 
 /**
  * Detalle público de una publicación: todos los datos que se publican y la galería completa.
@@ -19,7 +23,7 @@ import { OPERATION_LABELS, PROPERTY_TYPE_LABELS } from '../properties/property.m
  */
 @Component({
   selector: 'app-public-property-detail',
-  imports: [RouterLink, DecimalPipe, ErrorAlert, Logo],
+  imports: [RouterLink, DecimalPipe, ErrorAlert, InquiryFormModal, LikeButton, LocationMap, Logo, MortgageCalculator],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './public-property-detail.html',
 })
@@ -31,6 +35,7 @@ export class PublicPropertyDetail {
   protected readonly auth = inject(AuthService);
 
   protected readonly typeLabels = PROPERTY_TYPE_LABELS;
+  protected readonly amenityLabels = AMENITY_LABELS;
   protected readonly operationLabels = OPERATION_LABELS;
   protected readonly imageUrl = imageUrl;
 
@@ -38,6 +43,9 @@ export class PublicPropertyDetail {
   protected readonly loading = signal(true);
   protected readonly notFound = signal(false);
   protected readonly error = signal<string | null>(null);
+
+  /** El modal para pedir informes está abierto. */
+  protected readonly inquiryOpen = signal(false);
 
   /** Posición de la foto grande dentro de la galería. */
   protected readonly selected = signal(0);
@@ -47,6 +55,14 @@ export class PublicPropertyDetail {
   protected readonly location = computed(() => {
     const p = this.property();
     return p ? [p.neighborhood, p.city, p.state].filter(Boolean).join(', ') : '';
+  });
+
+  /** Zona aproximada para el mapa; null si la propiedad no tiene ubicación. */
+  protected readonly mapPosition = computed(() => {
+    const p = this.property();
+    return p && p.approximateLatitude !== null && p.approximateLongitude !== null
+      ? { latitude: p.approximateLatitude, longitude: p.approximateLongitude }
+      : null;
   });
 
   constructor() {

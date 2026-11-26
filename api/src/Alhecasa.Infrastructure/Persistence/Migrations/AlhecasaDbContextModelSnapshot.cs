@@ -16,7 +16,7 @@ partial class AlhecasaDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261123230316_AddPropertyImages";
+    public override string LastMigrationId => "20261125181631_AddPlansAndFeatured";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -49,6 +49,11 @@ partial class AlhecasaDbContextModelSnapshot : ModelSnapshot
                 b.Property<bool>("IsDeleted")
                     .HasColumnType("bit");
 
+                b.Property<string>("Kind")
+                    .IsRequired()
+                    .HasMaxLength(20)
+                    .HasColumnType("nvarchar(20)");
+
                 b.Property<string>("Name")
                     .IsRequired()
                     .HasMaxLength(200)
@@ -66,6 +71,178 @@ partial class AlhecasaDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("Agencies");
             });
 
+        modelBuilder.Entity("Alhecasa.Domain.Entities.Inquiry", b =>
+            {
+                b.Property<Guid>("Id")
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<Guid>("AgencyId")
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<DateTimeOffset>("CreatedAt")
+                    .HasColumnType("datetimeoffset");
+
+                b.Property<DateTimeOffset?>("DeletedAt")
+                    .HasColumnType("datetimeoffset");
+
+                b.Property<string>("Email")
+                    .IsRequired()
+                    .HasMaxLength(256)
+                    .HasColumnType("nvarchar(256)");
+
+                b.Property<bool>("IsDeleted")
+                    .HasColumnType("bit");
+
+                b.Property<string>("Message")
+                    .IsRequired()
+                    .HasMaxLength(2000)
+                    .HasColumnType("nvarchar(2000)");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasMaxLength(100)
+                    .HasColumnType("nvarchar(100)");
+
+                b.Property<string>("Phone")
+                    .IsRequired()
+                    .HasMaxLength(30)
+                    .HasColumnType("nvarchar(30)");
+
+                b.Property<Guid>("PropertyId")
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<string>("PropertyTitle")
+                    .IsRequired()
+                    .HasMaxLength(150)
+                    .HasColumnType("nvarchar(150)");
+
+                b.Property<string>("Status")
+                    .IsRequired()
+                    .HasMaxLength(30)
+                    .HasColumnType("nvarchar(30)");
+
+                b.Property<DateTimeOffset?>("UpdatedAt")
+                    .HasColumnType("datetimeoffset");
+
+                b.HasKey("Id");
+
+                b.HasIndex("PropertyId");
+
+                b.HasIndex("AgencyId", "Status", "CreatedAt");
+
+                b.ToTable("Inquiries");
+            });
+
+        modelBuilder.Entity("Alhecasa.Domain.Entities.InquiryFollowUp", b =>
+            {
+                b.Property<Guid>("Id")
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<Guid>("AgencyId")
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<Guid>("AuthorId")
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<string>("AuthorName")
+                    .IsRequired()
+                    .HasMaxLength(201)
+                    .HasColumnType("nvarchar(201)");
+
+                b.Property<DateTimeOffset>("CreatedAt")
+                    .HasColumnType("datetimeoffset");
+
+                b.Property<DateTimeOffset?>("DeletedAt")
+                    .HasColumnType("datetimeoffset");
+
+                b.Property<Guid>("InquiryId")
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<bool>("IsDeleted")
+                    .HasColumnType("bit");
+
+                b.Property<string>("Kind")
+                    .IsRequired()
+                    .HasMaxLength(30)
+                    .HasColumnType("nvarchar(30)");
+
+                b.Property<string>("Text")
+                    .IsRequired()
+                    .HasMaxLength(2000)
+                    .HasColumnType("nvarchar(2000)");
+
+                b.Property<DateTimeOffset?>("UpdatedAt")
+                    .HasColumnType("datetimeoffset");
+
+                b.HasKey("Id");
+
+                b.HasIndex("AgencyId");
+
+                b.HasIndex("InquiryId");
+
+                b.ToTable("InquiryFollowUps");
+            });
+
+        modelBuilder.Entity("Alhecasa.Domain.Entities.Plan", b =>
+            {
+                b.Property<Guid>("Id")
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<string>("Audience")
+                    .IsRequired()
+                    .HasMaxLength(20)
+                    .HasColumnType("nvarchar(20)");
+
+                b.Property<DateTimeOffset>("CreatedAt")
+                    .HasColumnType("datetimeoffset");
+
+                b.Property<string>("Currency")
+                    .IsRequired()
+                    .HasMaxLength(3)
+                    .HasColumnType("nvarchar(3)");
+
+                b.Property<DateTimeOffset?>("DeletedAt")
+                    .HasColumnType("datetimeoffset");
+
+                b.Property<string>("Description")
+                    .HasMaxLength(500)
+                    .HasColumnType("nvarchar(500)");
+
+                b.Property<bool>("IsActive")
+                    .HasColumnType("bit");
+
+                b.Property<bool>("IsDeleted")
+                    .HasColumnType("bit");
+
+                b.Property<string>("Kind")
+                    .IsRequired()
+                    .HasMaxLength(20)
+                    .HasColumnType("nvarchar(20)");
+
+                b.Property<int?>("Limit")
+                    .HasColumnType("int");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasMaxLength(100)
+                    .HasColumnType("nvarchar(100)");
+
+                b.Property<string>("Period")
+                    .HasMaxLength(10)
+                    .HasColumnType("nvarchar(10)");
+
+                b.Property<decimal>("Price")
+                    .HasPrecision(15, 2)
+                    .HasColumnType("decimal(15,2)");
+
+                b.Property<DateTimeOffset?>("UpdatedAt")
+                    .HasColumnType("datetimeoffset");
+
+                b.HasKey("Id");
+
+                b.ToTable("Plans");
+            });
+
         modelBuilder.Entity("Alhecasa.Domain.Entities.Property", b =>
             {
                 b.Property<Guid>("Id")
@@ -73,6 +250,9 @@ partial class AlhecasaDbContextModelSnapshot : ModelSnapshot
 
                 b.Property<Guid>("AgencyId")
                     .HasColumnType("uniqueidentifier");
+
+                b.Property<int>("Amenities")
+                    .HasColumnType("int");
 
                 b.Property<int?>("Bathrooms")
                     .HasColumnType("int");
@@ -104,12 +284,26 @@ partial class AlhecasaDbContextModelSnapshot : ModelSnapshot
                     .HasMaxLength(2000)
                     .HasColumnType("nvarchar(2000)");
 
+                b.Property<DateTimeOffset?>("FeaturedUntil")
+                    .HasColumnType("datetimeoffset");
+
+                b.Property<bool>("Furnished")
+                    .HasColumnType("bit");
+
                 b.Property<bool>("IsDeleted")
                     .HasColumnType("bit");
 
                 b.Property<decimal?>("LandArea")
                     .HasPrecision(10, 2)
                     .HasColumnType("decimal(10,2)");
+
+                b.Property<decimal?>("Latitude")
+                    .HasPrecision(9, 6)
+                    .HasColumnType("decimal(9,6)");
+
+                b.Property<decimal?>("Longitude")
+                    .HasPrecision(9, 6)
+                    .HasColumnType("decimal(9,6)");
 
                 b.Property<string>("Neighborhood")
                     .HasMaxLength(100)
@@ -119,6 +313,12 @@ partial class AlhecasaDbContextModelSnapshot : ModelSnapshot
                     .IsRequired()
                     .HasMaxLength(30)
                     .HasColumnType("nvarchar(30)");
+
+                b.Property<int?>("ParkingSpaces")
+                    .HasColumnType("int");
+
+                b.Property<bool>("PetsAllowed")
+                    .HasColumnType("bit");
 
                 b.Property<string>("PostalCode")
                     .HasMaxLength(10)
@@ -210,6 +410,78 @@ partial class AlhecasaDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("PropertyImages");
             });
 
+        modelBuilder.Entity("Alhecasa.Domain.Entities.Subscription", b =>
+            {
+                b.Property<Guid>("Id")
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<Guid>("AgencyId")
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<decimal>("AmountPaid")
+                    .HasPrecision(15, 2)
+                    .HasColumnType("decimal(15,2)");
+
+                b.Property<DateTimeOffset?>("CancelledAt")
+                    .HasColumnType("datetimeoffset");
+
+                b.Property<DateTimeOffset>("CreatedAt")
+                    .HasColumnType("datetimeoffset");
+
+                b.Property<string>("Currency")
+                    .IsRequired()
+                    .HasMaxLength(3)
+                    .HasColumnType("nvarchar(3)");
+
+                b.Property<DateTimeOffset?>("DeletedAt")
+                    .HasColumnType("datetimeoffset");
+
+                b.Property<DateTimeOffset>("EndsAt")
+                    .HasColumnType("datetimeoffset");
+
+                b.Property<bool>("IsDeleted")
+                    .HasColumnType("bit");
+
+                b.Property<string>("Kind")
+                    .IsRequired()
+                    .HasMaxLength(20)
+                    .HasColumnType("nvarchar(20)");
+
+                b.Property<int?>("Limit")
+                    .HasColumnType("int");
+
+                b.Property<string>("PaymentReference")
+                    .HasMaxLength(200)
+                    .HasColumnType("nvarchar(200)");
+
+                b.Property<string>("Period")
+                    .IsRequired()
+                    .HasMaxLength(10)
+                    .HasColumnType("nvarchar(10)");
+
+                b.Property<Guid>("PlanId")
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<string>("PlanName")
+                    .IsRequired()
+                    .HasMaxLength(100)
+                    .HasColumnType("nvarchar(100)");
+
+                b.Property<DateTimeOffset>("StartsAt")
+                    .HasColumnType("datetimeoffset");
+
+                b.Property<DateTimeOffset?>("UpdatedAt")
+                    .HasColumnType("datetimeoffset");
+
+                b.HasKey("Id");
+
+                b.HasIndex("PlanId");
+
+                b.HasIndex("AgencyId", "Kind");
+
+                b.ToTable("Subscriptions");
+            });
+
         modelBuilder.Entity("Alhecasa.Domain.Entities.User", b =>
             {
                 b.Property<Guid>("Id")
@@ -272,6 +544,30 @@ partial class AlhecasaDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("Users");
             });
 
+        modelBuilder.Entity("Alhecasa.Domain.Entities.Inquiry", b =>
+            {
+                b.HasOne("Alhecasa.Domain.Entities.Agency", null)
+                    .WithMany()
+                    .HasForeignKey("AgencyId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
+
+                b.HasOne("Alhecasa.Domain.Entities.Property", null)
+                    .WithMany()
+                    .HasForeignKey("PropertyId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity("Alhecasa.Domain.Entities.InquiryFollowUp", b =>
+            {
+                b.HasOne("Alhecasa.Domain.Entities.Inquiry", null)
+                    .WithMany("FollowUps")
+                    .HasForeignKey("InquiryId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
         modelBuilder.Entity("Alhecasa.Domain.Entities.Property", b =>
             {
                 b.HasOne("Alhecasa.Domain.Entities.Agency", "Agency")
@@ -292,6 +588,21 @@ partial class AlhecasaDbContextModelSnapshot : ModelSnapshot
                     .IsRequired();
             });
 
+        modelBuilder.Entity("Alhecasa.Domain.Entities.Subscription", b =>
+            {
+                b.HasOne("Alhecasa.Domain.Entities.Agency", null)
+                    .WithMany()
+                    .HasForeignKey("AgencyId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
+
+                b.HasOne("Alhecasa.Domain.Entities.Plan", null)
+                    .WithMany()
+                    .HasForeignKey("PlanId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
+            });
+
         modelBuilder.Entity("Alhecasa.Domain.Entities.User", b =>
             {
                 b.HasOne("Alhecasa.Domain.Entities.Agency", "Agency")
@@ -300,6 +611,11 @@ partial class AlhecasaDbContextModelSnapshot : ModelSnapshot
                     .OnDelete(DeleteBehavior.Restrict);
 
                 b.Navigation("Agency");
+            });
+
+        modelBuilder.Entity("Alhecasa.Domain.Entities.Inquiry", b =>
+            {
+                b.Navigation("FollowUps");
             });
 
         modelBuilder.Entity("Alhecasa.Domain.Entities.Property", b =>

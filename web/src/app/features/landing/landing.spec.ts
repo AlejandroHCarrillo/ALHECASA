@@ -26,8 +26,16 @@ const sample = (overrides: Partial<PublicProperty> = {}): PublicProperty => ({
   bathrooms: 5,
   constructionArea: 520,
   landArea: 600,
+  approximateLatitude: null,
+  approximateLongitude: null,
   imageIds: [],
   agencyName: 'Demo Real Estate',
+  agencyId: 'agency-1',
+  parkingSpaces: null,
+  petsAllowed: false,
+  furnished: false,
+  amenities: [],
+  isFeatured: false,
   ...overrides,
 });
 
@@ -73,7 +81,7 @@ describe('Landing', () => {
     expect(text).toContain('En renta');
     expect(text).toContain('/mes');
     expect(text).toContain('Lomas, Ciudad de México, CDMX');
-    expect(text).toContain('Publica: Demo Real Estate');
+    expect(text.replace(/\s+/g, ' ')).toContain('Publica: Demo Real Estate');
   });
 
   it('shows the first image as the cover, how many photos there are, and a placeholder without photos', async () => {
@@ -97,6 +105,37 @@ describe('Landing', () => {
     expect(text).toContain('3 fotos');
     expect(text).not.toContain('1 fotos');
     expect(fixture.nativeElement.querySelectorAll('[data-testid="no-cover"]')).toHaveLength(1);
+  });
+
+  it('puts a heart on every card; clicking it saves the like, with no session, without opening the detail', async () => {
+    const fixture = await open();
+    http.expectOne((r) => r.url === URL).flush(page([sample({ id: 'p-1' }), sample({ id: 'p-2', title: 'Loft' })]));
+    fixture.detectChanges();
+
+    const hearts = Array.from(fixture.nativeElement.querySelectorAll('app-like-button button') as NodeListOf<HTMLButtonElement>);
+    expect(hearts).toHaveLength(2);
+    expect(hearts.every((b) => b.closest('a') === null)).toBe(true);
+    expect(hearts.every((b) => b.getAttribute('aria-pressed') === 'false')).toBe(true);
+
+    hearts[1].click();
+    fixture.detectChanges();
+
+    expect(hearts[0].getAttribute('aria-pressed')).toBe('false');
+    expect(hearts[1].getAttribute('aria-pressed')).toBe('true');
+    expect(JSON.parse(localStorage.getItem('alhecasa.likes') ?? '[]')).toEqual(['p-2']);
+    expect(localStorage.getItem('alhecasa.session')).toBeNull();
+  });
+
+  it('shows as liked the properties saved in a previous visit', async () => {
+    localStorage.setItem('alhecasa.likes', JSON.stringify(['p-2']));
+    const fixture = await open();
+    http.expectOne((r) => r.url === URL).flush(page([sample({ id: 'p-1' }), sample({ id: 'p-2', title: 'Loft' })]));
+    fixture.detectChanges();
+
+    const pressed = Array.from(fixture.nativeElement.querySelectorAll('app-like-button button') as NodeListOf<HTMLButtonElement>).map((b) =>
+      b.getAttribute('aria-pressed'),
+    );
+    expect(pressed).toEqual(['false', 'true']);
   });
 
   it('links both the cover and the title of each property to its detail page', async () => {
@@ -177,6 +216,128 @@ describe('Landing', () => {
     expect(fixture.nativeElement.textContent).toContain('No hay propiedades que coincidan con los filtros.');
   });
 
+  // --- Mis favoritas ----------------------------------------------------------------------
+
+  const favoritesButton = (fixture: ComponentFixture<Landing>): HTMLButtonElement =>
+    Array.from(fixture.nativeElement.querySelectorAll('form[role="search"] button') as NodeListOf<HTMLButtonElement>).find((b) =>
+      b.textContent?.includes('Mis favoritas'),
+    )!;
+
+  it('shows how many favorites the visitor has on the button, and nothing when there are none', async () => {
+    const fixture = await open();
+    http.expectOne((r) => r.url === URL).flush(page([]));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-testid="favorites-count"]')).toBeNull();
+    expect(favoritesButton(fixture).getAttribute('aria-pressed')).toBe('false');
+
+    TestBed.resetTestingModule();
+    localStorage.setItem('alhecasa.likes', JSON.stringify(['p-1', 'p-2', 'p-3']));
+    const another = await open();
+    http.expectOne((r) => r.url === URL).flush(page([]));
+    another.detectChanges();
+    expect(another.nativeElement.querySelector('[data-testid="favorites-count"]').textContent).toContain('3');
+  });
+
+  it('asks the API only for the liked properties when «Mis favoritas» is pressed, from page 1', async () => {
+    localStorage.setItem('alhecasa.likes', JSON.stringify(['p-1', 'p-2']));
+    const fixture = await open();
+    http.expectOne((r) => r.url === URL).flush(page([sample(), sample({ id: 'p-2' })], 30));
+    fixture.detectChanges();
+    expect(http.expectNone((r) => r.url === URL)).toBeUndefined();
+
+    favoritesButton(fixture).click();
+    fixture.detectChanges();
+
+    const request = http.expectOne((r) => r.url === URL);
+    expect(request.request.params.getAll('ids')).toEqual(['p-1', 'p-2']);
+    expect(request.request.params.get('page')).toBe('1');
+    request.flush(page([sample()], 1));
+    fixture.detectChanges();
+
+    expect(favoritesButton(fixture).getAttribute('aria-pressed')).toBe('true');
+    expect(fixture.nativeElement.textContent).toContain('1 propiedad con los filtros elegidos');
+    expect(fixture.nativeElement.textContent).toContain('Quitar filtros');
+  });
+
+  it('combines the favorites with the other filters and applies what was typed', async () => {
+    localStorage.setItem('alhecasa.likes', JSON.stringify(['p-1']));
+    const fixture = await open();
+    http.expectOne((r) => r.url === URL).flush(page([]));
+    fixture.detectChanges();
+
+    field(fixture, 'filter-operation', 'Rent');
+    favoritesButton(fixture).click();
+
+    const request = http.expectOne((r) => r.url === URL);
+    expect(request.request.params.getAll('ids')).toEqual(['p-1']);
+    expect(request.request.params.get('operation')).toBe('Rent');
+    request.flush(page([]));
+  });
+
+  it('does not call the API when there are no favorites, and explains how to add some', async () => {
+    const fixture = await open();
+    http.expectOne((r) => r.url === URL).flush(page([sample()]));
+    fixture.detectChanges();
+
+    favoritesButton(fixture).click();
+    fixture.detectChanges();
+
+    http.expectNone((r) => r.url === URL);
+    expect(fixture.nativeElement.textContent).toContain('Todavía no marcas ninguna propiedad.');
+    expect(fixture.nativeElement.textContent).toContain('0 propiedades');
+  });
+
+  it('explains when the favorites no longer match or are no longer published', async () => {
+    localStorage.setItem('alhecasa.likes', JSON.stringify(['retirada']));
+    const fixture = await open();
+    http.expectOne((r) => r.url === URL).flush(page([]));
+    fixture.detectChanges();
+
+    favoritesButton(fixture).click();
+    http.expectOne((r) => r.url === URL).flush(page([]));
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Ninguna de tus favoritas coincide con los filtros, o ya no está publicada.');
+  });
+
+  it('goes back to every property when «Mis favoritas» is pressed again', async () => {
+    localStorage.setItem('alhecasa.likes', JSON.stringify(['p-1']));
+    const fixture = await open();
+    http.expectOne((r) => r.url === URL).flush(page([]));
+    fixture.detectChanges(); // el botón está deshabilitado mientras carga
+    favoritesButton(fixture).click();
+    http.expectOne((r) => r.url === URL).flush(page([sample()], 1));
+    fixture.detectChanges();
+
+    favoritesButton(fixture).click();
+
+    const request = http.expectOne((r) => r.url === URL);
+    expect(request.request.params.has('ids')).toBe(false);
+    request.flush(page([sample()], 12));
+    fixture.detectChanges();
+    expect(favoritesButton(fixture).getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('«Quitar filtros» also turns the favorites off', async () => {
+    localStorage.setItem('alhecasa.likes', JSON.stringify(['p-1']));
+    const fixture = await open();
+    http.expectOne((r) => r.url === URL).flush(page([]));
+    fixture.detectChanges(); // el botón está deshabilitado mientras carga
+    favoritesButton(fixture).click();
+    http.expectOne((r) => r.url === URL).flush(page([sample()], 1));
+    fixture.detectChanges();
+
+    Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find((b) => b.textContent?.includes('Quitar filtros'))
+      ?.click();
+
+    const request = http.expectOne((r) => r.url === URL);
+    expect(request.request.params.has('ids')).toBe(false);
+    request.flush(page([sample()], 12));
+    fixture.detectChanges();
+    expect(favoritesButton(fixture).getAttribute('aria-pressed')).toBe('false');
+  });
+
   it('omits the filters left empty', async () => {
     const fixture = await open();
     http.expectOne((r) => r.url === URL).flush(page([]));
@@ -245,6 +406,27 @@ describe('Landing', () => {
 
     expect(fixture.nativeElement.querySelector('[role="alert"]')).not.toBeNull();
     expect(fixture.nativeElement.textContent).toContain('Propiedades disponibles');
+  });
+
+  it('invites visitors to create a free account, in the header and the introduction', async () => {
+    const fixture = await open();
+    http.expectOne((r) => r.url === URL).flush(page([]));
+    fixture.detectChanges();
+
+    const links = Array.from(fixture.nativeElement.querySelectorAll('a[href="/registro"]') as NodeListOf<HTMLAnchorElement>);
+    expect(links.length).toBeGreaterThanOrEqual(2);
+    expect(fixture.nativeElement.querySelector('[data-testid="register-header"]')?.textContent).toContain('Publica gratis');
+    expect(fixture.nativeElement.querySelector('[data-testid="register-hero"]')?.textContent).toContain('Publica tu anuncio gratis');
+  });
+
+  it('links to the mortgage calculator from the header', async () => {
+    const fixture = await open();
+    http.expectOne((r) => r.url === URL).flush(page([]));
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector('[data-testid="mortgage-link"]') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/calculadora-hipotecaria');
+    expect(link.textContent).toContain('Calculadora');
   });
 });
 

@@ -5,6 +5,7 @@ import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { environment } from '../../../environments/environment';
 import { PublicProperty } from '../landing/public-properties.service';
+import { LEAFLET_LOADER } from '../../shared/components/location-map/location-map';
 import { PublicPropertyDetail } from './public-property-detail';
 
 const sample = (overrides: Partial<PublicProperty> = {}): PublicProperty => ({
@@ -22,8 +23,16 @@ const sample = (overrides: Partial<PublicProperty> = {}): PublicProperty => ({
   bathrooms: 5,
   constructionArea: 520,
   landArea: null,
+  approximateLatitude: null,
+  approximateLongitude: null,
   imageIds: ['img-a', 'img-b', 'img-c'],
   agencyName: 'Demo Real Estate',
+  agencyId: 'agency-1',
+  parkingSpaces: null,
+  petsAllowed: false,
+  furnished: false,
+  amenities: [],
+  isFeatured: false,
   ...overrides,
 });
 
@@ -36,6 +45,8 @@ describe('PublicPropertyDetail', () => {
         provideRouter([{ path: 'publicaciones/:id', component: PublicPropertyDetail }]),
         provideHttpClient(),
         provideHttpClientTesting(),
+        // El mapa real no se carga en estas pruebas: aquí solo importa si el detalle lo muestra o no.
+        { provide: LEAFLET_LOADER, useValue: () => new Promise(() => undefined) },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -71,8 +82,36 @@ describe('PublicPropertyDetail', () => {
     expect(text).toContain('Lomas, Ciudad de México, CDMX');
     expect(text).toContain('Tres niveles y jardín.');
     expect(text).toContain('520 m²');
-    expect(text).toContain('Publica: Demo Real Estate');
+    expect(text.replace(/\s+/g, ' ')).toContain('Publica: Demo Real Estate');
     expect(text).not.toContain('Terreno'); // sin dato, no se muestra
+  });
+
+  it('links the publisher to all of its active publications, but not an individual', async () => {
+    const company = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample({ agencyName: 'Demo Real Estate', agencyId: 'agency-7' }));
+    company.detectChanges();
+    const link = root(company).querySelector('[data-testid="agency-link"]') as HTMLAnchorElement;
+    expect(link.textContent?.trim()).toBe('Demo Real Estate');
+    expect(link.getAttribute('href')).toBe('/inmobiliarias/agency-7');
+
+    TestBed.resetTestingModule();
+    const individual = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample({ agencyName: 'Particular', agencyId: null }));
+    individual.detectChanges();
+    expect(root(individual).querySelector('[data-testid="agency-link"]')).toBeNull();
+    expect((root(individual).textContent as string).replace(/\s+/g, ' ')).toContain('Publica: Particular');
+  });
+  it('badges a featured publication and only a featured one', async () => {
+    const featured = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample({ isFeatured: true }));
+    featured.detectChanges();
+    expect(root(featured).querySelector('[data-testid="featured-badge"]')?.textContent).toContain('Destacado');
+
+    TestBed.resetTestingModule();
+    const normal = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample({ isFeatured: false }));
+    normal.detectChanges();
+    expect(root(normal).querySelector('[data-testid="featured-badge"]')).toBeNull();
   });
 
   it('shows every photo as a thumbnail and the first one large', async () => {
@@ -137,11 +176,151 @@ describe('PublicPropertyDetail', () => {
     expect(root(harness).querySelector('app-error-alert')).not.toBeNull();
   });
 
+  it('lets the visitor like the publication from the detail, sharing the state with the list', async () => {
+    localStorage.setItem('alhecasa.likes', JSON.stringify(['otra']));
+    const harness = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample());
+    harness.detectChanges();
+    const heart = root(harness).querySelector('app-like-button button') as HTMLButtonElement;
+    expect(heart.getAttribute('aria-pressed')).toBe('false');
+    expect(heart.textContent).toContain('Me gusta');
+
+    heart.click();
+    harness.detectChanges();
+
+    expect(heart.getAttribute('aria-pressed')).toBe('true');
+    expect(heart.textContent).toContain('Te gusta');
+    expect(JSON.parse(localStorage.getItem('alhecasa.likes') ?? '[]')).toEqual(['otra', 'p-1']);
+  });
+
+  it('shows the publication as liked when it was liked before', async () => {
+    localStorage.setItem('alhecasa.likes', JSON.stringify(['p-1']));
+    const harness = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample());
+    harness.detectChanges();
+
+    expect(root(harness).querySelector('app-like-button button')?.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('shows the map with the approximate zone when the property has a location', async () => {
+    const harness = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample({ approximateLatitude: 19.433, approximateLongitude: -99.133 }));
+    harness.detectChanges();
+
+    const section = root(harness).querySelector('[data-testid="location"]');
+    expect(section).not.toBeNull();
+    expect(section?.querySelector('app-location-map')).not.toBeNull();
+    expect(section?.textContent).toContain('zona aproximada');
+    expect(section?.querySelector('[role="region"]')?.getAttribute('aria-label')).toContain('Casa moderna con alberca');
+  });
+
+  it('does not show a map when the property has no location', async () => {
+    const harness = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample());
+    harness.detectChanges();
+
+    expect(root(harness).querySelector('[data-testid="location"]')).toBeNull();
+    expect(root(harness).querySelector('app-location-map')).toBeNull();
+  });
+
   it('offers the login only to visitors without a session', async () => {
     const harness = await open();
     http.expectOne(detailUrl('p-1')).flush(sample());
     harness.detectChanges();
 
     expect(root(harness).querySelectorAll('a[href="/login"]')).toHaveLength(1);
+  });
+  it('offers "Pedir informes" and opens the request form for that property', async () => {
+    const harness = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample());
+    harness.detectChanges();
+    expect(root(harness).querySelector('app-inquiry-form-modal')).toBeNull();
+
+    click(harness, '[data-testid="request-info"]');
+
+    expect(root(harness).querySelector('app-inquiry-form-modal')).not.toBeNull();
+    expect(root(harness).querySelector('dialog')?.textContent).toContain('Casa moderna con alberca');
+  });
+
+  it('shows parking, pets, furnished and the amenities with their Spanish names', async () => {
+    const harness = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample({ parkingSpaces: 3, petsAllowed: true, furnished: true, amenities: ['Pool', 'Security24h'] }));
+    harness.detectChanges();
+
+    expect(root(harness).querySelector('[data-testid="parking"]')?.textContent).toContain('3');
+    const features = root(harness).querySelector('[data-testid="features"]')?.textContent ?? '';
+    expect(features).toContain('Amueblada');
+    expect(features).toContain('Acepta mascotas');
+    expect(features).toContain('Alberca');
+    expect(features).toContain('Seguridad 24 h');
+    expect(features).not.toContain('Gimnasio');
+  });
+
+  it('does not show the features block, nor parking, when there is nothing to show', async () => {
+    const harness = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample());
+    harness.detectChanges();
+
+    expect(root(harness).querySelector('[data-testid="features"]')).toBeNull();
+    expect(root(harness).querySelector('[data-testid="parking"]')).toBeNull();
+  });
+
+  it('badges the publication as featured only when it is', async () => {
+    const featured = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample({ isFeatured: true }));
+    featured.detectChanges();
+    expect(root(featured).querySelector('[data-testid="featured-badge"]')?.textContent).toContain('Destacado');
+
+    TestBed.resetTestingModule();
+    const plain = await open();
+    http.expectOne(detailUrl('p-1')).flush(sample());
+    plain.detectChanges();
+    expect(root(plain).querySelector('[data-testid="featured-badge"]')).toBeNull();
+  });
+
+  describe('calculadora hipotecaria', () => {
+    const field = (harness: RouterTestingHarness, id: string) => root(harness).querySelector(`#${id}`) as HTMLInputElement;
+
+    it('is offered for a sale, preloaded with the price of the publication', async () => {
+      const harness = await open();
+      http.expectOne(detailUrl('p-1')).flush(sample({ price: 3_000_000, currency: 'MXN' }));
+      harness.detectChanges();
+      harness.detectChanges();
+
+      const section = root(harness).querySelector('[data-testid="mortgage"]') as HTMLElement;
+      expect(section.textContent).toContain('Calcula tu mensualidad');
+      expect(field(harness, 'mortgage-price').value).toBe('3000000');
+      expect(section.querySelector('[data-testid="result-payment"]')).not.toBeNull();
+      // La moneda es la de la publicación: no se ofrece cambiarla aquí.
+      expect(section.querySelector('[data-testid="currency"]')).toBeNull();
+    });
+
+    it('formats the result in the currency of the publication', async () => {
+      const harness = await open();
+      http.expectOne(detailUrl('p-1')).flush(sample({ price: 200_000, currency: 'USD' }));
+      harness.detectChanges();
+      harness.detectChanges();
+
+      expect(root(harness).querySelector('[data-testid="result-payment"]')?.textContent).toContain('USD');
+    });
+
+    it('links to the full page carrying the price and the currency', async () => {
+      const harness = await open();
+      http.expectOne(detailUrl('p-1')).flush(sample({ price: 200_000, currency: 'USD' }));
+      harness.detectChanges();
+
+      const link = root(harness).querySelector('[data-testid="mortgage-full"]') as HTMLAnchorElement;
+      expect(link.getAttribute('href')).toBe('/calculadora-hipotecaria?precio=200000&moneda=USD');
+    });
+
+    it('is not offered for a rental', async () => {
+      const harness = await open();
+      http.expectOne(detailUrl('p-1')).flush(sample({ operation: 'Rent', price: 25_000 }));
+      harness.detectChanges();
+      harness.detectChanges();
+
+      expect(root(harness).querySelector('[data-testid="mortgage"]')).toBeNull();
+      expect(root(harness).querySelector('#mortgage-price')).toBeNull();
+    });
   });
 });

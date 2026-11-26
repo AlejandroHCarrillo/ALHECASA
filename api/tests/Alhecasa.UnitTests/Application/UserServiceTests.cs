@@ -63,6 +63,17 @@ public sealed class UserServiceTests
         await Assert.ThrowsAsync<ForbiddenException>(() => service.CreateAsync(NewRequest(UserRole.Client, null)));
     }
 
+    [Fact]
+    public async Task TheOwnerOfAFreeAccount_CannotManageUsers()
+    {
+        var individual = _agencies.AddIndividual();
+        var service = CreateService(FakeCurrentUser.AgencyAdmin(individual.Id));
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.GetPagedAsync(new UserListQuery()));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.CreateAsync(NewRequest(UserRole.Seller, individual.Id)));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.DeleteAsync(Guid.CreateVersion7()));
+    }
+
     // --- Alta -------------------------------------------------------------------------------
 
     [Fact]

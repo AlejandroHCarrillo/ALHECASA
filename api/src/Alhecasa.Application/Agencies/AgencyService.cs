@@ -4,7 +4,7 @@ using Alhecasa.Domain.Entities;
 
 namespace Alhecasa.Application.Agencies;
 
-public sealed record AgencyDto(Guid Id, string Name, string Email, string? Phone, bool IsActive);
+public sealed record AgencyDto(Guid Id, string Name, string Email, string? Phone, bool IsActive, bool IsIndividual = false);
 
 public interface IAgencyService
 {
@@ -20,5 +20,5 @@ public sealed class AgencyService(IAgencyRepository agencies) : IAgencyService
         return items.Select(ToDto).ToList();
     }
 
-    private static AgencyDto ToDto(Agency a) => new(a.Id, a.Name, a.Email, a.Phone, a.IsActive);
+    private static AgencyDto ToDto(Agency a) => new(a.Id, a.Name, a.Email, a.Phone, a.IsActive, a.IsIndividual);
 }

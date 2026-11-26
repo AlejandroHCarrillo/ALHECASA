@@ -1,0 +1,75 @@
+<div class="space-y-6">
+  <div>
+    <h1 class="text-2xl font-bold">Mi plan</h1>
+    <p class="text-sm text-base-content/70">Lo que tiene tu cuenta y los planes que puedes comprar para publicar más o destacar tus anuncios.</p>
+  </div>
+
+  @if (error(); as message) {
+    <app-error-alert [message]="message" (dismissed)="error.set(null)" />
+  }
+
+  @if (loading()) {
+    <div class="py-10 text-center"><span class="loading loading-spinner loading-md" aria-label="Cargando"></span></div>
+  } @else {
+    @if (account(); as acct) {
+      <app-plan-summary [account]="acct" />
+    }
+
+    <section class="space-y-4" aria-label="Planes disponibles">
+      <div role="tablist" class="tabs tabs-box w-fit">
+        @for (k of kinds; track k) {
+          <button
+            type="button"
+            role="tab"
+            class="tab"
+            [class.tab-active]="kind() === k"
+            [attr.aria-selected]="kind() === k"
+            [attr.data-testid]="'tab-' + k"
+            (click)="setKind(k)"
+          >
+            {{ kindLabels[k] }}
+          </button>
+        }
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        @for (plan of visible(); track plan.id) {
+          <article class="card bg-base-100 shadow" data-testid="plan-card">
+            <div class="card-body gap-2">
+              <h3 class="card-title text-lg">
+                {{ plan.name }}
+                @if (isCurrent(plan)) {
+                  <span class="badge badge-success badge-sm" data-testid="current-badge">Tu plan</span>
+                }
+              </h3>
+              @if (plan.description) {
+                <p class="text-sm text-base-content/70">{{ plan.description }}</p>
+              }
+              <p class="font-medium">{{ describeLimit(plan.kind, plan.limit) }}</p>
+              <p class="font-display text-2xl font-bold text-secondary">
+                {{ plan.currency }} {{ plan.price | number: '1.2-2' }}
+                <span class="text-sm font-medium text-base-content/70">{{ periodUnits[plan.period!] }}</span>
+              </p>
+              <p class="text-xs text-base-content/60">Dura {{ periodSpans[plan.period!] }} desde la compra. No se renueva sola.</p>
+              <div class="card-actions mt-2">
+                <button type="button" class="btn btn-primary btn-sm w-full" data-testid="buy" (click)="buy(plan)">
+                  {{ isCurrent(plan) ? 'Renovar' : 'Comprar' }}
+                </button>
+              </div>
+            </div>
+          </article>
+        } @empty {
+          <p class="col-span-full py-6 text-center text-base-content/60" data-testid="no-plans">
+            No hay planes disponibles de este tipo por ahora.
+          </p>
+        }
+      </div>
+    </section>
+  }
+</div>
+
+@if (selected(); as plan) {
+  @if (account(); as acct) {
+    <app-checkout-modal [plan]="plan" [account]="acct" (purchased)="onPurchased($event)" (cancelled)="closeCheckout()" />
+  }
+}
