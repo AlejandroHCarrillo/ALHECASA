@@ -32,6 +32,14 @@ describe('PropertyFormModal', () => {
     bathrooms: null,
     constructionArea: null,
     landArea: null,
+    latitude: null,
+    longitude: null,
+    parkingSpaces: null,
+    petsAllowed: false,
+    furnished: false,
+    amenities: [],
+    isFeatured: false,
+    featuredUntil: null,
     imageIds: ['img-1'],
     createdAt: new Date().toISOString(),
     updatedAt: null,
@@ -161,7 +169,92 @@ describe('PropertyFormModal', () => {
       bathrooms: null,
       constructionArea: null,
       landArea: null,
+      latitude: null,
+      longitude: null,
+      parkingSpaces: null,
+      petsAllowed: false,
+      furnished: false,
+      amenities: [],
     });
+  });
+
+  it('sends the typed coordinates as latitude and longitude', async () => {
+    const fixture = await open(UserRole.Seller);
+    fillRequired(fixture);
+    set(fixture, 'coordinates', ' 19.4326, -99.1332 ');
+    fixture.detectChanges();
+
+    submit(fixture);
+
+    expect(http.expectOne(`${environment.apiUrl}/properties`).request.body).toMatchObject({ latitude: 19.4326, longitude: -99.1332 });
+  });
+
+  it.each(['abc', '19.4326', '91, 0', '0, 181'])('does not send anything with the invalid coordinates "%s"', async (text) => {
+    const fixture = await open(UserRole.Seller);
+    fillRequired(fixture);
+    set(fixture, 'coordinates', text);
+    fixture.detectChanges();
+
+    submit(fixture);
+
+    http.expectNone(`${environment.apiUrl}/properties`);
+    expect(fixture.nativeElement.textContent).toContain('Escribe latitud y longitud');
+  });
+
+  it('loads the current coordinates when editing, and clearing them removes the location', async () => {
+    const fixture = await open(UserRole.Seller, { ...existing, latitude: 19.4326, longitude: -99.1332 });
+    expect((fixture.nativeElement.querySelector('#coordinates') as HTMLInputElement).value).toBe('19.4326, -99.1332');
+
+    set(fixture, 'coordinates', '');
+    fixture.detectChanges();
+    submit(fixture);
+
+    const request = http.expectOne(`${environment.apiUrl}/properties/p-1`);
+    expect(request.request.body).toMatchObject({ latitude: null, longitude: null });
+    request.flush(existing);
+  });
+
+  it('sends parking, pets, furnished and the chosen amenities', async () => {
+    const fixture = await open(UserRole.Seller);
+    fillRequired(fixture);
+    set(fixture, 'parkingSpaces', '2');
+    (fixture.nativeElement.querySelector('#petsAllowed') as HTMLInputElement).click();
+    (fixture.nativeElement.querySelector('#furnished') as HTMLInputElement).click();
+    (fixture.nativeElement.querySelector('#amenity-Pool') as HTMLInputElement).click();
+    (fixture.nativeElement.querySelector('#amenity-Gym') as HTMLInputElement).click();
+    (fixture.nativeElement.querySelector('#amenity-Pool') as HTMLInputElement).click(); // la quita
+    fixture.detectChanges();
+
+    submit(fixture);
+
+    expect(http.expectOne(`${environment.apiUrl}/properties`).request.body).toMatchObject({
+      parkingSpaces: 2,
+      petsAllowed: true,
+      furnished: true,
+      amenities: ['Gym'],
+    });
+  });
+
+  it('loads the current parking, pets, furnished and amenities when editing', async () => {
+    const fixture = await open(UserRole.Seller, { ...existing, parkingSpaces: 3, petsAllowed: true, furnished: true, amenities: ['Pool', 'Elevator'] });
+
+    expect((fixture.nativeElement.querySelector('#parkingSpaces') as HTMLInputElement).value).toBe('3');
+    expect((fixture.nativeElement.querySelector('#petsAllowed') as HTMLInputElement).checked).toBe(true);
+    expect((fixture.nativeElement.querySelector('#furnished') as HTMLInputElement).checked).toBe(true);
+    expect((fixture.nativeElement.querySelector('#amenity-Pool') as HTMLInputElement).checked).toBe(true);
+    expect((fixture.nativeElement.querySelector('#amenity-Elevator') as HTMLInputElement).checked).toBe(true);
+    expect((fixture.nativeElement.querySelector('#amenity-Gym') as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('rejects a negative number of parking spaces', async () => {
+    const fixture = await open(UserRole.Seller);
+    fillRequired(fixture);
+    set(fixture, 'parkingSpaces', '-1');
+    fixture.detectChanges();
+
+    submit(fixture);
+
+    http.expectNone(`${environment.apiUrl}/properties`);
   });
 
   it('sends the selected operation, type and currency', async () => {

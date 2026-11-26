@@ -76,6 +76,62 @@ public sealed class PropertyTests
         Assert.Throws<DomainException>(() => new Property(AgencyId, ValidData() with { LandArea = -1 }));
     }
 
+    [Theory]
+    [InlineData(90.1, 0)]
+    [InlineData(-90.1, 0)]
+    [InlineData(0, 180.1)]
+    [InlineData(0, -180.1)]
+    public void Coordinates_OutOfRange_AreRejected(double latitude, double longitude)
+    {
+        var data = ValidData() with { Latitude = (decimal)latitude, Longitude = (decimal)longitude };
+
+        Assert.Throws<DomainException>(() => new Property(AgencyId, data));
+    }
+
+    [Fact]
+    public void Coordinates_MustComeTogether()
+    {
+        Assert.Throws<DomainException>(() => new Property(AgencyId, ValidData() with { Latitude = 19.4m }));
+        Assert.Throws<DomainException>(() => new Property(AgencyId, ValidData() with { Longitude = -99.1m }));
+    }
+
+    [Fact]
+    public void Coordinates_AreStoredRoundedToSixDecimals_AndTheLimitsAreAccepted()
+    {
+        var property = new Property(AgencyId, ValidData() with { Latitude = 19.4326077m, Longitude = -99.1332079m });
+
+        Assert.Equal(19.432608m, property.Latitude);
+        Assert.Equal(-99.133208m, property.Longitude);
+
+        property.SetCoordinates(90m, -180m);
+        Assert.Equal(90m, property.Latitude);
+        Assert.Equal(-180m, property.Longitude);
+    }
+
+    [Fact]
+    public void SetCoordinates_CanRemoveTheLocation_ButNotLeaveItHalfSet()
+    {
+        var property = new Property(AgencyId, ValidData() with { Latitude = 19.4m, Longitude = -99.1m });
+
+        Assert.Throws<DomainException>(() => property.SetCoordinates(19.4m, null));
+        Assert.Equal(19.4m, property.Latitude);
+
+        property.SetCoordinates(null, null);
+        Assert.Null(property.Latitude);
+        Assert.Null(property.Longitude);
+    }
+
+    [Fact]
+    public void Update_WithoutCoordinates_RemovesTheLocation()
+    {
+        var property = new Property(AgencyId, ValidData() with { Latitude = 19.4m, Longitude = -99.1m });
+
+        property.Update(ValidData());
+
+        Assert.Null(property.Latitude);
+        Assert.Null(property.Longitude);
+    }
+
     [Fact]
     public void OptionalFields_CanBeOmitted()
     {
@@ -128,5 +184,71 @@ public sealed class PropertyTests
 
         Assert.True(property.IsDeleted);
         Assert.NotNull(property.DeletedAt);
+    }
+
+    [Fact]
+    public void NewProperty_StoresParkingPetsFurnishedAndAmenities()
+    {
+        var property = new Property(AgencyId, ValidData() with { ParkingSpaces = 2, PetsAllowed = true, Furnished = true, Amenities = Amenity.Pool | Amenity.Gym });
+
+        Assert.Equal(2, property.ParkingSpaces);
+        Assert.True(property.PetsAllowed);
+        Assert.True(property.Furnished);
+        Assert.Equal(Amenity.Pool | Amenity.Gym, property.Amenities);
+    }
+
+    [Fact]
+    public void TheNewDetails_AreOptional()
+    {
+        var property = new Property(AgencyId, ValidData());
+
+        Assert.Null(property.ParkingSpaces);
+        Assert.False(property.PetsAllowed);
+        Assert.False(property.Furnished);
+        Assert.Equal(Amenity.None, property.Amenities);
+    }
+
+    [Fact]
+    public void Property_RejectsNegativeParking_AndUndefinedAmenityBits()
+    {
+        Assert.Throws<DomainException>(() => new Property(AgencyId, ValidData() with { ParkingSpaces = -1 }));
+        Assert.Throws<DomainException>(() => new Property(AgencyId, ValidData() with { Amenities = (Amenity)(1 << 20) }));
+    }
+
+    [Fact]
+    public void CompleteAdvancedDetails_FillsOnlyWhenNothingWasCaptured()
+    {
+        var empty = new Property(AgencyId, ValidData());
+        Assert.True(empty.CompleteAdvancedDetails(2, true, false, Amenity.Pool));
+        Assert.Equal(2, empty.ParkingSpaces);
+        Assert.Equal(Amenity.Pool, empty.Amenities);
+
+        // Ya tiene datos: no se pisan.
+        Assert.False(empty.CompleteAdvancedDetails(5, false, true, Amenity.Gym));
+        Assert.Equal(2, empty.ParkingSpaces);
+        Assert.Equal(Amenity.Pool, empty.Amenities);
+    }
+
+    [Fact]
+    public void AmenityFlags_ConvertBetweenTheMaskAndTheList()
+    {
+        var mask = AmenityFlags.Combine([Amenity.Gym, Amenity.Pool, Amenity.Pool]);
+
+        Assert.Equal(Amenity.Pool | Amenity.Gym, mask);
+        Assert.Equal([Amenity.Pool, Amenity.Gym], AmenityFlags.ToList(mask));
+        Assert.Empty(AmenityFlags.ToList(Amenity.None));
+        Assert.Equal(Amenity.None, AmenityFlags.Combine(null));
+        Assert.True(AmenityFlags.IsSingle(Amenity.Pool));
+        Assert.False(AmenityFlags.IsSingle(Amenity.None));
+        Assert.False(AmenityFlags.IsSingle(Amenity.Pool | Amenity.Gym));
+    }
+
+    [Fact]
+    public void EveryAmenity_IsADistinctSingleBit()
+    {
+        var values = AmenityFlags.All.Select(a => (int)a).ToList();
+
+        Assert.Equal(values.Count, values.Distinct().Count());
+        Assert.All(values, v => Assert.Equal(1, int.PopCount(v)));
     }
 }

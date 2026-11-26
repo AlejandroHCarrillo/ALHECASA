@@ -1,0 +1,99 @@
+@let property = data();
+<!-- Fuera del enlace de la foto: un botón dentro de un enlace no es válido ni accesible. -->
+<app-like-button class="absolute right-2 top-2 z-10" [propertyId]="property.id" [title]="property.title" />
+<a
+  [routerLink]="['/publicaciones', property.id]"
+  class="block"
+  [attr.aria-label]="'Ver el detalle de ' + property.title"
+>
+<figure class="relative aspect-4/3 bg-base-200" data-testid="cover">
+  @if (property.isFeatured) {
+    <span class="badge badge-warning absolute left-2 top-2 z-10 gap-1 font-semibold" data-testid="featured-badge">
+      <i class="fa-solid fa-star" aria-hidden="true"></i>Destacado
+    </span>
+  }
+  @if (property.imageIds[0]; as cover) {
+    <img
+      [src]="imageUrl(cover)"
+      [alt]="'Foto de ' + property.title"
+      class="h-full w-full object-cover"
+      loading="lazy"
+      decoding="async"
+    />
+    @if (property.imageIds.length > 1) {
+      <span class="badge badge-neutral badge-sm absolute bottom-2 right-2">
+        <i class="fa-solid fa-images mr-1" aria-hidden="true"></i>{{ property.imageIds.length }} fotos
+      </span>
+    }
+  } @else {
+    <div class="flex h-full w-full flex-col items-center justify-center gap-1 text-base-content/40" data-testid="no-cover">
+      <i class="fa-regular fa-image text-3xl" aria-hidden="true"></i>
+      <span class="text-xs">Sin fotos</span>
+    </div>
+  }
+</figure>
+</a>
+<div class="card-body gap-3">
+  <div class="flex flex-wrap gap-2">
+    <span class="badge" [class.badge-accent]="property.operation === 'Sale'" [class.badge-primary]="property.operation === 'Rent'">
+      En {{ property.operation === 'Sale' ? 'venta' : 'renta' }}
+    </span>
+    <span class="badge badge-ghost">{{ typeLabels[property.type] }}</span>
+    @if (property.furnished) {
+      <span class="badge badge-outline" data-testid="badge-furnished">Amueblada</span>
+    }
+    @if (property.petsAllowed) {
+      <span class="badge badge-outline" data-testid="badge-pets"><i class="fa-solid fa-paw mr-1" aria-hidden="true"></i>Mascotas</span>
+    }
+  </div>
+
+  <h3 class="card-title text-lg leading-snug">
+    <a [routerLink]="['/publicaciones', property.id]" class="hover:text-primary hover:underline">{{ property.title }}</a>
+  </h3>
+
+  <p class="text-sm text-base-content/70">
+    <i class="fa-solid fa-location-dot mr-1" aria-hidden="true"></i>{{ location(property) }}
+  </p>
+
+  <p class="font-display text-2xl font-bold text-secondary">
+    ${{ property.price | number: '1.0-2' }}
+    <span class="text-sm font-medium text-base-content/70">
+      {{ property.currency }}@if (property.operation === 'Rent') { /mes }
+    </span>
+  </p>
+
+  @if (property.bedrooms !== null || property.bathrooms !== null || property.parkingSpaces !== null || property.constructionArea !== null || property.landArea !== null) {
+    <ul class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-base-content/80">
+      @if (property.bedrooms !== null) {
+        <li><i class="fa-solid fa-bed mr-1" aria-hidden="true"></i>{{ property.bedrooms }} rec.</li>
+      }
+      @if (property.bathrooms !== null) {
+        <li><i class="fa-solid fa-bath mr-1" aria-hidden="true"></i>{{ property.bathrooms }} baños</li>
+      }
+      @if (property.parkingSpaces !== null) {
+        <li data-testid="parking"><i class="fa-solid fa-car mr-1" aria-hidden="true"></i>{{ property.parkingSpaces }} {{ property.parkingSpaces === 1 ? 'estac.' : 'estacs.' }}</li>
+      }
+      @if (property.constructionArea !== null) {
+        <li><i class="fa-solid fa-ruler-combined mr-1" aria-hidden="true"></i>{{ property.constructionArea | number: '1.0-2' }} m² const.</li>
+      }
+      @if (property.landArea !== null) {
+        <li><i class="fa-solid fa-vector-square mr-1" aria-hidden="true"></i>{{ property.landArea | number: '1.0-2' }} m² terreno</li>
+      }
+    </ul>
+  }
+
+  @if (property.description) {
+    <p class="line-clamp-3 text-sm text-base-content/80">{{ property.description }}</p>
+  }
+
+  @if (property.agencyName) {
+    <p class="mt-auto border-t border-base-200 pt-3 text-xs text-base-content/60">
+      Publica:
+      @if (property.agencyId) {
+        <a [routerLink]="['/inmobiliarias', property.agencyId]" class="link link-hover font-medium" data-testid="agency-link" [attr.title]="'Ver todas las publicaciones de ' + property.agencyName">{{ property.agencyName }}</a>
+      } @else {
+        {{ property.agencyName }}
+      }
+    </p>
+  }
+</div>

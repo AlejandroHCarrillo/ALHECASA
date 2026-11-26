@@ -1,0 +1,62 @@
+@if (profile(); as agency) {
+  <section class="card bg-base-100 shadow" aria-labelledby="agency-profile-title" data-testid="agency-profile">
+    <div class="card-body gap-4">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="flex min-w-0 items-center gap-4">
+          <div class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-box border border-base-300 bg-base-200">
+            @if (agency.hasLogo) {
+              <img [src]="logoUrl(agency)" alt="Logotipo de {{ agency.name }}" class="h-full w-full object-contain" data-testid="logo" />
+            } @else {
+              <i class="fa-solid fa-building text-2xl text-base-content/40" aria-hidden="true"></i>
+            }
+          </div>
+          <div class="min-w-0">
+            <h2 id="agency-profile-title" class="text-lg font-bold">Mi inmobiliaria</h2>
+            <p class="truncate text-base-content/70" data-testid="name">{{ agency.name }}</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <a [routerLink]="['/inmobiliarias', agency.id]" class="btn btn-ghost btn-sm" data-testid="public-page">
+            <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+            Ver página pública
+          </a>
+          <button type="button" class="btn btn-primary btn-sm" data-testid="edit" (click)="editing.set(true)">
+            <i class="fa-solid fa-pen" aria-hidden="true"></i>
+            Editar información
+          </button>
+        </div>
+      </div>
+
+      @if (isEmpty(agency)) {
+        <p class="rounded-box bg-base-200 p-3 text-sm text-base-content/70" data-testid="incomplete">
+          Completa la información de tu inmobiliaria (logotipo, descripción y dirección): es lo que ven los visitantes en tu página pública.
+        </p>
+      }
+
+      <dl class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <dt class="text-xs uppercase text-base-content/60">Correo</dt>
+          <dd data-testid="email">{{ agency.email }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs uppercase text-base-content/60">Teléfono</dt>
+          <dd data-testid="phone">{{ agency.phone || 'Sin capturar' }}</dd>
+        </div>
+        <div class="sm:col-span-2">
+          <dt class="text-xs uppercase text-base-content/60">Dirección</dt>
+          <dd data-testid="address">{{ address(agency) || 'Sin capturar' }}</dd>
+        </div>
+        @if (agency.openingHours) {
+          <div class="sm:col-span-2">
+            <dt class="text-xs uppercase text-base-content/60">Horario de atención</dt>
+            <dd data-testid="hours">{{ agency.openingHours }}</dd>
+          </div>
+        }
+      </dl>
+    </div>
+  </section>
+
+  @if (editing()) {
+    <app-agency-profile-modal [profile]="agency" (saved)="onSaved($event)" (cancelled)="editing.set(false)" />
+  }
+}

@@ -1,0 +1,159 @@
+<app-modal [title]="isEdit() ? 'Editar plan' : 'Agregar plan'" (closed)="cancelled.emit()">
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="space-y-4">
+    @if (error(); as message) {
+      <app-error-alert [message]="message" (dismissed)="error.set(null)" />
+    }
+
+    <div class="form-control">
+      <label class="label" for="plan-name"><span class="label-text">Nombre <span class="text-error">*</span></span></label>
+      <input
+        id="plan-name"
+        type="text"
+        class="input input-bordered w-full"
+        formControlName="name"
+        [attr.maxlength]="limits.nameMaxLength"
+        [class.input-error]="hasError('name')"
+      />
+      @if (hasError('name')) {
+        <span class="mt-1 text-sm text-error">El nombre es obligatorio.</span>
+      }
+    </div>
+
+    <div class="form-control">
+      <label class="label" for="plan-description"><span class="label-text">Descripción</span></label>
+      <textarea
+        id="plan-description"
+        class="textarea textarea-bordered w-full"
+        rows="2"
+        formControlName="description"
+        [attr.maxlength]="limits.descriptionMaxLength"
+      ></textarea>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="form-control">
+        <label class="label" for="plan-price"><span class="label-text">Precio <span class="text-error">*</span></span></label>
+        <input
+          id="plan-price"
+          type="number"
+          class="input input-bordered w-full"
+          formControlName="price"
+          min="0"
+          step="0.01"
+          [class.input-error]="hasError('price')"
+        />
+        @if (hasError('price')) {
+          <span class="mt-1 text-sm text-error">Captura un precio válido (0 para el plan gratuito).</span>
+        }
+      </div>
+
+      <div class="form-control">
+        <label class="label" for="plan-currency"><span class="label-text">Moneda</span></label>
+        <select id="plan-currency" class="select select-bordered w-full" formControlName="currency">
+          @for (currency of currencies; track currency) {
+            <option [value]="currency">{{ currency }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    @if (isFree()) {
+      <p class="rounded-box bg-base-200 p-3 text-sm" data-testid="free-note">
+        <i class="fa-solid fa-gift mr-1" aria-hidden="true"></i>
+        Con precio 0 es el <strong>plan gratuito</strong>: es el que tienen por omisión los particulares, solo limita las
+        publicaciones y no vence. Solo puede haber uno.
+      </p>
+    }
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="form-control">
+        <label class="label" for="plan-kind"><span class="label-text">Qué incluye</span></label>
+        <select id="plan-kind" class="select select-bordered w-full" formControlName="kind">
+          @for (kind of kinds; track kind) {
+            <option [value]="kind">{{ kindLabels[kind] }}</option>
+          }
+        </select>
+        <span class="mt-1 text-xs text-base-content/60">
+          @if (selectedKind() === 'Listings') {
+            Cuántas propiedades puede tener la cuenta.
+          } @else {
+            Cuántos anuncios pueden estar destacados a la vez mientras dura el paquete.
+          }
+        </span>
+      </div>
+
+      <div class="form-control">
+        <label class="label" for="plan-audience"><span class="label-text">Para</span></label>
+        <select id="plan-audience" class="select select-bordered w-full" formControlName="audience">
+          @for (audience of audiences; track audience) {
+            <option [value]="audience">{{ audienceLabels[audience] }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="form-control">
+        <label class="label" for="plan-limit">
+          <span class="label-text">
+            {{ selectedKind() === 'Listings' ? 'Publicaciones' : 'Destacados a la vez' }}
+            @if (!unlimited()) {
+              <span class="text-error">*</span>
+            }
+          </span>
+        </label>
+        <input
+          id="plan-limit"
+          type="number"
+          class="input input-bordered w-full"
+          formControlName="limit"
+          list="plan-limit-options"
+          min="1"
+          [attr.max]="limits.maxLimit"
+          [class.input-error]="hasError('limit')"
+        />
+        <datalist id="plan-limit-options">
+          @for (option of suggestedLimits(); track option) {
+            <option [value]="option"></option>
+          }
+        </datalist>
+        @if (hasError('limit')) {
+          <span class="mt-1 text-sm text-error">Captura un número entre 1 y {{ limits.maxLimit }}, o marca «Ilimitado».</span>
+        }
+        <label class="label cursor-pointer justify-start gap-2">
+          <input id="plan-unlimited" type="checkbox" class="checkbox checkbox-sm checkbox-primary" formControlName="unlimited" />
+          <span class="label-text">Ilimitado</span>
+        </label>
+      </div>
+
+      @if (!isFree()) {
+        <div class="form-control">
+          <label class="label" for="plan-period"><span class="label-text">Vigencia <span class="text-error">*</span></span></label>
+          <select id="plan-period" class="select select-bordered w-full" formControlName="period">
+            @for (period of periods; track period) {
+              <option [value]="period">{{ periodLabels[period] }}</option>
+            }
+          </select>
+          <span class="mt-1 text-xs text-base-content/60">Cada contratación dura un periodo desde que se registra el pago.</span>
+        </div>
+      }
+    </div>
+
+    @if (!isFree()) {
+      <label class="label cursor-pointer justify-start gap-3">
+        <input id="plan-active" type="checkbox" class="checkbox checkbox-primary" formControlName="isActive" />
+        <span class="label-text">Plan activo (se puede contratar)</span>
+      </label>
+    }
+
+    <div class="modal-action">
+      <button type="button" class="btn" [disabled]="submitting()" (click)="cancelled.emit()">Cancelar</button>
+      <button type="submit" class="btn btn-primary" [disabled]="submitting()">
+        @if (submitting()) {
+          <span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+        }
+        Guardar
+      </button>
+    </div>
+  </form>
+</app-modal>

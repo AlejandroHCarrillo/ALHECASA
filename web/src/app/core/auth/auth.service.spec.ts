@@ -79,6 +79,19 @@ describe('AuthService', () => {
     expect(router.url).toBe('/');
   });
 
+  it('keeps the liked properties when the session is closed or expires', async () => {
+    localStorage.setItem('alhecasa.likes', JSON.stringify(['p-1', 'p-2']));
+    const auth = setup();
+    const router = TestBed.inject(Router);
+    signIn(auth);
+    await router.navigateByUrl('/inicio');
+
+    auth.logout();
+    await new Promise((resolve) => setTimeout(resolve));
+
+    expect(JSON.parse(localStorage.getItem('alhecasa.likes') ?? '[]')).toEqual(['p-1', 'p-2']);
+  });
+
   it('sends an expired session to the login, remembering where the user was', async () => {
     const auth = setup();
     const router = TestBed.inject(Router);
@@ -91,5 +104,48 @@ describe('AuthService', () => {
     expect(auth.isAuthenticated()).toBe(false);
     expect(localStorage.getItem('alhecasa.session')).toBeNull();
     expect(router.url).toBe('/login?returnUrl=%2Fpropiedades');
+  });
+  it('registers a free account and keeps the session it returns', () => {
+    const auth = setup();
+
+    auth.register({ firstName: 'Ana', lastName: 'Lopez', email: 'a@b.com', password: 'Correct-Horse-9' }).subscribe();
+    const request = http.expectOne(`${environment.apiUrl}/auth/register`);
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ firstName: 'Ana', lastName: 'Lopez', email: 'a@b.com', password: 'Correct-Horse-9' });
+    request.flush({
+      accessToken: 'jwt',
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      user: { id: '1', fullName: 'Ana Lopez', email: 'a@b.com', role: UserRole.AgencyAdmin, agencyId: 'x', agencyName: 'Ana Lopez', isIndividual: true },
+    });
+
+    expect(auth.isAuthenticated()).toBe(true);
+    expect(auth.token()).toBe('jwt');
+    expect(auth.user()?.isIndividual).toBe(true);
+    expect(JSON.parse(localStorage.getItem('alhecasa.session') ?? '{}').token).toBe('jwt');
+  });
+
+it('keeps the session but shows the new agency name after the administrator renames the agency', () => {
+    const auth = setup();
+    auth.login({ email: 'a@b.com', password: 'x' }).subscribe();
+    http.expectOne(`${environment.apiUrl}/auth/login`).flush({
+      accessToken: 'jwt',
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      user: { id: '1', fullName: 'A', email: 'a@b.com', role: UserRole.AgencyAdmin, agencyId: 'x', agencyName: 'Nombre viejo' },
+    });
+
+    auth.updateAgencyName('Nombre nuevo');
+
+    expect(auth.user()?.agencyName).toBe('Nombre nuevo');
+    expect(auth.token()).toBe('jwt');
+    expect(JSON.parse(localStorage.getItem('alhecasa.session') ?? '{}').user.agencyName).toBe('Nombre nuevo');
+  });
+
+  it('ignores a rename when nobody is signed in', () => {
+    const auth = setup();
+
+    auth.updateAgencyName('Nombre nuevo');
+
+    expect(auth.user()).toBeNull();
+    expect(localStorage.getItem('alhecasa.session')).toBeNull();
   });
 });

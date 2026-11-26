@@ -1,4 +1,5 @@
 using Alhecasa.Application.Abstractions;
+using Alhecasa.Application.Billing;
 using Alhecasa.Application.Common;
 using Alhecasa.Domain.Common;
 using Alhecasa.Domain.Entities;
@@ -13,9 +14,18 @@ public interface IPropertyService
 
     Task<PropertyDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Las propiedades publicadas de la inmobiliaria del usuario, con el mismo contenido y el mismo orden con que las ve un visitante
+    /// (solo datos públicos). Solo para personal de una inmobiliaria: el administrador de plataforma no tiene una.
+    /// </summary>
+    Task<PagedResult<PublicPropertyDto>> GetGalleryAsync(PublicPropertyQuery query, CancellationToken cancellationToken = default);
+
     Task<PropertyDto> CreateAsync(CreatePropertyRequest request, CancellationToken cancellationToken = default);
 
     Task<PropertyDto> UpdateAsync(Guid id, UpdatePropertyRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>Destaca o quita el destacado de una propiedad publicada. Destacar exige un paquete de destacados vigente con lugar libre.</summary>
+    Task<PropertyDto> SetFeaturedAsync(Guid id, SetFeaturedRequest request, CancellationToken cancellationToken = default);
 
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
 
@@ -47,13 +57,29 @@ public sealed class PropertyService(
     ICurrentUser currentUser,
     IValidator<CreatePropertyRequest> createValidator,
     IValidator<UpdatePropertyRequest> updateValidator,
-    TimeProvider timeProvider) : IPropertyService
+    TimeProvider timeProvider,
+    IEntitlementService entitlements) : IPropertyService
 {
     public async Task<PagedResult<PropertyDto>> GetPagedAsync(PropertyListQuery query, CancellationToken cancellationToken = default)
     {
         EnsureCanManageProperties();
         var page = await properties.GetPagedAsync(query.Normalize(), cancellationToken);
         return page.Map(ToDto);
+    }
+
+    public async Task<PagedResult<PublicPropertyDto>> GetGalleryAsync(PublicPropertyQuery query, CancellationToken cancellationToken = default)
+    {
+        if (currentUser.Role is not (UserRole.AgencyAdmin or UserRole.Supervisor or UserRole.Seller))
+        {
+            throw new ForbiddenException("Only agency staff have a gallery.");
+        }
+
+        var agencyId = currentUser.AgencyId
+            ?? throw new ForbiddenException("Your account does not belong to an agency.");
+
+        var result = await properties.GetPublishedPagedAsync(query.Normalize() with { Ids = null }, agencyId, cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        return result.Map(p => PublicPropertyService.ToDto(p, now));
     }
 
     public async Task<PropertyDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -74,8 +100,9 @@ public sealed class PropertyService(
             throw new DomainException(PublishNeedsImagesMessage);
         }
 
-        var agencyId = await ResolveAgencyIdAsync(request.AgencyId, cancellationToken);
-        var property = new Property(agencyId, request.ToData());
+        var agency = await ResolveAgencyAsync(request.AgencyId, cancellationToken);
+        await EnsureWithinPlanAsync(agency, cancellationToken);
+        var property = new Property(agency.Id, request.ToData());
 
         await properties.AddAsync(property, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -97,9 +124,55 @@ public sealed class PropertyService(
         }
 
         property.Update(request.ToData());
+
+        // Un anuncio que deja de estar publicado pierde el destacado: así no ocupa un lugar del paquete sin verse.
+        if (property.Status != PropertyStatus.Published)
+        {
+            property.Unfeature();
+        }
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return await GetByIdAsync(property.Id, cancellationToken);
+    }
+
+    public async Task<PropertyDto> SetFeaturedAsync(Guid id, SetFeaturedRequest request, CancellationToken cancellationToken = default)
+    {
+        EnsureCanManageProperties();
+
+        var property = await properties.GetByIdAsync(id, cancellationToken)
+            ?? throw new NotFoundException("Property not found.");
+        var now = timeProvider.GetUtcNow();
+
+        if (!request.Featured)
+        {
+            property.Unfeature();
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return ToDto(property);
+        }
+
+        if (property.Status != PropertyStatus.Published)
+        {
+            throw new DomainException("Only a published property can be featured.");
+        }
+
+        if (property.IsFeaturedAt(now))
+        {
+            return ToDto(property);
+        }
+
+        var package = await entitlements.GetFeaturedAsync(property.AgencyId, cancellationToken)
+            ?? throw new PlanLimitException("Tu cuenta no tiene un paquete de destacados vigente. Contrata uno para destacar tus anuncios.");
+
+        if (package.Limit is { } limit && package.Used >= limit)
+        {
+            throw new PlanLimitException(
+                $"Tu paquete \"{package.PlanName}\" permite {limit} {(limit == 1 ? "anuncio destacado" : "anuncios destacados")} a la vez. Quita el destacado a otro o contrata un paquete mayor.");
+        }
+
+        property.Feature(package.EndsAt, now);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return ToDto(property);
     }
 
     public async Task<PropertyDto> UpdateImagesAsync(
@@ -177,30 +250,7 @@ public sealed class PropertyService(
     private const string PublishNeedsImagesMessage =
         "A published property needs at least one image. Save it as a draft, add the images, then publish it.";
 
-    private static ImageFormat ValidateImage(ImageUpload upload)
-    {
-        if (upload.Length <= 0)
-        {
-            throw new DomainException("An image file is empty.");
-        }
-
-        if (upload.Length > PropertyImageRules.MaxBytes)
-        {
-            throw new DomainException($"Each image can be at most {PropertyImageRules.MaxBytes / (1024 * 1024)} MB.");
-        }
-
-        if (!upload.Content.CanSeek)
-        {
-            throw new DomainException("The image could not be read.");
-        }
-
-        Span<byte> header = stackalloc byte[PropertyImageRules.HeaderLength];
-        upload.Content.Position = 0;
-        var read = upload.Content.ReadAtLeast(header, header.Length, throwOnEndOfStream: false);
-
-        return PropertyImageRules.Detect(header[..read])
-            ?? throw new DomainException("Only JPEG, PNG and WebP images are accepted.");
-    }
+    private static ImageFormat ValidateImage(ImageUpload upload) => PropertyImageRules.Validate(upload);
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
@@ -221,7 +271,7 @@ public sealed class PropertyService(
         }
     }
 
-    private async Task<Guid> ResolveAgencyIdAsync(Guid? requestedAgencyId, CancellationToken cancellationToken)
+    private async Task<Agency> ResolveAgencyAsync(Guid? requestedAgencyId, CancellationToken cancellationToken)
     {
         Guid agencyId;
 
@@ -241,15 +291,26 @@ public sealed class PropertyService(
                 ?? throw new ForbiddenException("Your account does not belong to an agency.");
         }
 
-        if (await agencies.GetByIdAsync(agencyId, cancellationToken) is null)
-        {
-            throw new NotFoundException("Agency not found.");
-        }
-
-        return agencyId;
+        return await agencies.GetByIdAsync(agencyId, cancellationToken)
+            ?? throw new NotFoundException("Agency not found.");
     }
 
-    private static PropertyDto ToDto(Property p) => new(
+    /// <summary>El plan de la cuenta (gratuito, de pago o ninguno) fija cuántas propiedades puede tener, borradores incluidos.</summary>
+    private async Task EnsureWithinPlanAsync(Agency agency, CancellationToken cancellationToken)
+    {
+        var allowance = await entitlements.GetListingsAsync(agency, cancellationToken);
+        if (allowance.Limit is not { } limit || allowance.Used < limit)
+        {
+            return;
+        }
+
+        var noun = limit == 1 ? "propiedad" : "propiedades";
+        throw new PlanLimitException(allowance.IsFree
+            ? $"Tu cuenta gratuita permite hasta {limit} {noun}. Elimina una para publicar otra."
+            : $"Tu plan \"{allowance.PlanName}\" permite hasta {limit} {noun}. Elimina una o contrata un plan mayor.");
+    }
+
+    private PropertyDto ToDto(Property p) => new(
         p.Id,
         p.AgencyId,
         p.Agency?.Name,
@@ -269,7 +330,15 @@ public sealed class PropertyService(
         p.Bathrooms,
         p.ConstructionArea,
         p.LandArea,
+        p.Latitude,
+        p.Longitude,
         PublicPropertyService.OrderedImageIds(p),
         p.CreatedAt,
-        p.UpdatedAt);
+        p.UpdatedAt,
+        p.ParkingSpaces,
+        p.PetsAllowed,
+        p.Furnished,
+        AmenityFlags.ToList(p.Amenities),
+        p.IsFeaturedAt(timeProvider.GetUtcNow()),
+        p.IsFeaturedAt(timeProvider.GetUtcNow()) ? p.FeaturedUntil : null);
 }

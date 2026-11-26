@@ -1,0 +1,105 @@
+<app-modal title="Pedir informes" boxClass="max-w-lg" (closed)="closed.emit()">
+  @if (sent()) {
+    <div class="space-y-4 text-center" data-testid="sent">
+      <i class="fa-solid fa-circle-check text-5xl text-success" aria-hidden="true"></i>
+      <p class="font-semibold">¡Solicitud enviada!</p>
+      <p class="text-sm text-base-content/70">
+        La inmobiliaria recibió tu mensaje y se pondrá en contacto contigo por teléfono o correo.
+      </p>
+      <div class="modal-action justify-center">
+        <button type="button" class="btn btn-primary" (click)="closed.emit()">Cerrar</button>
+      </div>
+    </div>
+  } @else {
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="space-y-4">
+      <p class="text-sm text-base-content/70">
+        Déjanos tus datos para que la inmobiliaria te contacte sobre <strong>{{ propertyTitle() }}</strong>.
+      </p>
+
+      @if (error(); as message) {
+        <app-error-alert [message]="message" (dismissed)="error.set(null)" />
+      }
+
+      <div class="form-control">
+        <label class="label" for="inquiry-name"><span class="label-text">Nombre <span class="text-error">*</span></span></label>
+        <input
+          id="inquiry-name"
+          type="text"
+          autocomplete="name"
+          class="input input-bordered w-full"
+          formControlName="name"
+          [attr.maxlength]="limits.name"
+          [class.input-error]="hasError('name')"
+        />
+        @if (hasError('name')) {
+          <span class="mt-1 text-sm text-error">El nombre es obligatorio.</span>
+        }
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div class="form-control">
+          <label class="label" for="inquiry-phone"><span class="label-text">Teléfono <span class="text-error">*</span></span></label>
+          <input
+            id="inquiry-phone"
+            type="tel"
+            autocomplete="tel"
+            class="input input-bordered w-full"
+            formControlName="phone"
+            [attr.maxlength]="limits.phone"
+            [class.input-error]="hasError('phone')"
+          />
+          @if (hasError('phone')) {
+            <span class="mt-1 text-sm text-error">Captura un teléfono válido (de 7 a 15 dígitos).</span>
+          }
+        </div>
+
+        <div class="form-control">
+          <label class="label" for="inquiry-email"><span class="label-text">Correo electrónico <span class="text-error">*</span></span></label>
+          <input
+            id="inquiry-email"
+            type="email"
+            autocomplete="email"
+            class="input input-bordered w-full"
+            formControlName="email"
+            [attr.maxlength]="limits.email"
+            [class.input-error]="hasError('email')"
+          />
+          @if (hasError('email')) {
+            <span class="mt-1 text-sm text-error">Captura un correo válido.</span>
+          }
+        </div>
+      </div>
+
+      <div class="form-control">
+        <label class="label" for="inquiry-message"><span class="label-text">Pregunta <span class="text-error">*</span></span></label>
+        <textarea
+          id="inquiry-message"
+          rows="4"
+          placeholder="Ej. ¿Sigue disponible? ¿Puedo agendar una visita?"
+          class="textarea textarea-bordered w-full"
+          formControlName="message"
+          [attr.maxlength]="limits.text"
+          [class.textarea-error]="hasError('message')"
+        ></textarea>
+        @if (hasError('message')) {
+          <span class="mt-1 text-sm text-error">Escribe tu pregunta.</span>
+        }
+      </div>
+
+      <p class="text-xs text-base-content/60">
+        Tus datos se compartirán únicamente con la inmobiliaria que publica esta propiedad, para responder tu solicitud.
+      </p>
+      <app-privacy-notice action="enviar la solicitud" />
+
+      <div class="modal-action">
+        <button type="button" class="btn" [disabled]="submitting()" (click)="closed.emit()">Cancelar</button>
+        <button type="submit" class="btn btn-primary" [disabled]="submitting()">
+          @if (submitting()) {
+            <span class="loading loading-spinner loading-sm" aria-hidden="true"></span>
+          }
+          Enviar solicitud
+        </button>
+      </div>
+    </form>
+  }
+</app-modal>

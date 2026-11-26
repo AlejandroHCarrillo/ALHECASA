@@ -1,3 +1,5 @@
+using Alhecasa.Domain.Common;
+
 namespace Alhecasa.Application.Properties;
 
 /// <summary>Un archivo recibido para agregar a la galería de una propiedad.</summary>
@@ -14,6 +16,35 @@ public static class PropertyImageRules
 
     /// <summary>Bytes iniciales que bastan para reconocer el formato.</summary>
     public const int HeaderLength = 12;
+
+    /// <summary>
+    /// Valida un archivo de imagen recibido (no vacío, de hasta <see cref="MaxBytes"/>, legible y de un formato aceptado)
+    /// y devuelve su formato. Lanza <see cref="DomainException"/> (400) si no cumple. Lo usan las fotos de las propiedades y el logotipo.
+    /// </summary>
+    public static ImageFormat Validate(ImageUpload upload)
+    {
+        if (upload.Length <= 0)
+        {
+            throw new DomainException("An image file is empty.");
+        }
+
+        if (upload.Length > MaxBytes)
+        {
+            throw new DomainException($"Each image can be at most {MaxBytes / (1024 * 1024)} MB.");
+        }
+
+        if (!upload.Content.CanSeek)
+        {
+            throw new DomainException("The image could not be read.");
+        }
+
+        Span<byte> header = stackalloc byte[HeaderLength];
+        upload.Content.Position = 0;
+        var read = upload.Content.ReadAtLeast(header, header.Length, throwOnEndOfStream: false);
+
+        return Detect(header[..read])
+            ?? throw new DomainException("Only JPEG, PNG and WebP images are accepted.");
+    }
 
     /// <summary>
     /// Reconoce JPEG, PNG y WebP por el contenido del archivo (su firma), no por el nombre ni por el tipo

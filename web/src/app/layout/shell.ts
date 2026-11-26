@@ -11,6 +11,8 @@ interface MenuItem {
   exact?: boolean;
   /** Si se omite, lo ve cualquier usuario autenticado. */
   roles?: UserRole[];
+  /** No se muestra en la cuenta gratuita de un particular (tiene un solo usuario). */
+  companyOnly?: boolean;
 }
 
 const MENU_GROUPS: MenuItem[][] = [
@@ -23,6 +25,20 @@ const MENU_GROUPS: MenuItem[][] = [
       icon: 'fa-building',
       roles: [UserRole.PlatformAdmin, UserRole.AgencyAdmin, UserRole.Supervisor, UserRole.Seller],
     },
+    {
+      // Solo personal de una inmobiliaria: el administrador de plataforma no tiene propiedades propias que mostrar.
+      label: 'Galería',
+      route: '/galeria',
+      icon: 'fa-images',
+      roles: [UserRole.AgencyAdmin, UserRole.Supervisor, UserRole.Seller],
+    },
+    {
+      // Prospectos que piden informes de las propiedades de la inmobiliaria.
+      label: 'Solicitudes de informes',
+      route: '/solicitudes',
+      icon: 'fa-envelope',
+      roles: [UserRole.AgencyAdmin, UserRole.Supervisor, UserRole.Seller],
+    },
   ],
   // Administración
   [
@@ -31,6 +47,27 @@ const MENU_GROUPS: MenuItem[][] = [
       route: '/usuarios',
       icon: 'fa-users',
       roles: [UserRole.PlatformAdmin, UserRole.AgencyAdmin],
+      companyOnly: true,
+    },
+    {
+      // El administrador de la inmobiliaria (o el particular) ve su plan y compra otro.
+      label: 'Mi plan',
+      route: '/mi-plan',
+      icon: 'fa-credit-card',
+      roles: [UserRole.AgencyAdmin],
+    },
+    {
+      // Catálogo de planes de pago con el que se monetiza el portal.
+      label: 'Planes',
+      route: '/planes',
+      icon: 'fa-tags',
+      roles: [UserRole.PlatformAdmin],
+    },
+    {
+      label: 'Suscripciones',
+      route: '/suscripciones',
+      icon: 'fa-receipt',
+      roles: [UserRole.PlatformAdmin],
     },
   ],
 ];
@@ -51,13 +88,19 @@ export class Shell {
   // Cada ítem solo aparece si el usuario puede abrir esa ruta (misma regla que el roleGuard).
   protected readonly groups = computed(() =>
     MENU_GROUPS.map((group) =>
-      group.filter((item) => !item.roles || this.auth.hasRole(...item.roles)),
+      group.filter(
+        (item) => (!item.roles || this.auth.hasRole(...item.roles)) && !(item.companyOnly && this.auth.user()?.isIndividual),
+      ),
     ).filter((group) => group.length > 0),
   );
 
   protected readonly roleLabel = computed(() => {
-    const role = this.auth.user()?.role;
-    return role ? USER_ROLE_LABELS[role] : '';
+    const user = this.auth.user();
+    if (user?.isIndividual) {
+      return 'Cuenta gratuita';
+    }
+
+    return user ? USER_ROLE_LABELS[user.role] : '';
   });
 
   protected toggleCollapsed(): void {

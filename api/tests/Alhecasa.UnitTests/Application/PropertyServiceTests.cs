@@ -1,4 +1,5 @@
 using Alhecasa.Application.Abstractions;
+using Alhecasa.Application.Billing;
 using Alhecasa.Application.Common;
 using Alhecasa.Application.Properties;
 using Alhecasa.Domain.Common;
@@ -16,6 +17,9 @@ public sealed class PropertyServiceTests
     private readonly FakeAgencyRepository _agencies = new();
     private readonly FakeUnitOfWork _unitOfWork = new();
     private readonly FakeImageStorage _storage = new();
+    private readonly FakePlanRepository _plans = new();
+    private readonly FakeSubscriptionRepository _subscriptions = new();
+    private readonly FakeClock _clock = new(new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
     private readonly Agency _agencyA;
     private readonly Agency _agencyB;
 
@@ -33,7 +37,8 @@ public sealed class PropertyServiceTests
         currentUser,
         new CreatePropertyRequestValidator(),
         new UpdatePropertyRequestValidator(),
-        TimeProvider.System);
+        _clock,
+        new EntitlementService(_subscriptions, _plans, _properties, _clock, new AccountLimits(3)));
 
     private static FakeCurrentUser Staff(UserRole role, Guid agencyId) =>
         new() { UserId = Guid.CreateVersion7(), Role = role, AgencyId = agencyId };
@@ -394,4 +399,136 @@ public sealed class PropertyServiceTests
         Assert.Equal(PropertyListQuery.MaxPageSize, normalized.PageSize);
         Assert.Null(new PropertyListQuery("   ").Normalize().Search);
     }
-}
+
+    [Fact]
+    public async Task ListQuery_NormalizesAndValidatesTheCriteria_BeforeReachingTheRepository()
+    {
+        var service = CreateService(Staff(UserRole.Seller, _agencyA.Id));
+
+        await service.GetPagedAsync(new PropertyListQuery(Status: PropertyStatus.Draft, Amenities: [Amenity.Gym, Amenity.Gym], MinPrice: 5m, Currency: CurrencyCode.MXN));
+
+        var sent = _properties.LastListQuery!;
+        Assert.Equal(PropertyStatus.Draft, sent.Status);
+        Assert.Equal([Amenity.Gym], sent.Amenities);
+
+        await Assert.ThrowsAsync<DomainException>(() => service.GetPagedAsync(new PropertyListQuery(MinPrice: 5m)));
+        await Assert.ThrowsAsync<DomainException>(() => service.GetPagedAsync(new PropertyListQuery(Status: (PropertyStatus)99)));
+    }
+
+    [Fact]
+    public async Task Gallery_PassesTheCriteria_ButStaysInTheUsersAgencyAndIgnoresIds()
+    {
+        var service = CreateService(Staff(UserRole.Seller, _agencyA.Id));
+
+        await service.GetGalleryAsync(new PublicPropertyQuery(MinBedrooms: 3, Ids: [Guid.NewGuid()], Sort: PropertySort.PriceAsc));
+
+        Assert.Equal(_agencyA.Id, _properties.LastPublicAgencyId);
+        Assert.Equal(3, _properties.LastPublicQuery!.MinBedrooms);
+        Assert.Equal(PropertySort.PriceAsc, _properties.LastPublicQuery.Sort);
+        Assert.Null(_properties.LastPublicQuery.Ids);
+    }
+
+    // --- Galería de la inmobiliaria ---------------------------------------------------------
+
+    private Property AddPublished(Guid agencyId, string title)
+    {
+        var property = new Property(agencyId, PropertyTests.ValidData() with { Title = title, Status = PropertyStatus.Published });
+        _properties.Items.Add(property);
+        return property;
+    }
+
+    [Theory]
+    [InlineData(UserRole.AgencyAdmin)]
+    [InlineData(UserRole.Supervisor)]
+    [InlineData(UserRole.Seller)]
+    public async Task Gallery_ShowsOnlyThePublishedPropertiesOfTheOwnAgency(UserRole role)
+    {
+        var mine = AddPublished(_agencyA.Id, "Publicada mía");
+        AddProperty(_agencyA.Id, "Borrador mío");
+        AddPublished(_agencyB.Id, "Publicada ajena");
+
+        var page = await CreateService(Staff(role, _agencyA.Id)).GetGalleryAsync(new PublicPropertyQuery(Page: 1, PageSize: 12));
+
+        Assert.Equal([mine.Id], page.Items.Select(p => p.Id));
+        Assert.Equal(1, page.TotalCount);
+    }
+
+    [Fact]
+    public async Task Gallery_IsNotAvailableToThePlatformAdministratorNorToClients()
+    {
+        var platformAdmin = new FakeCurrentUser { UserId = Guid.CreateVersion7(), Role = UserRole.PlatformAdmin };
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => CreateService(platformAdmin).GetGalleryAsync(new PublicPropertyQuery()));
+        await Assert.ThrowsAsync<ForbiddenException>(() => CreateService(FakeCurrentUser.Client()).GetGalleryAsync(new PublicPropertyQuery()));
+    }
+
+    [Fact]
+    public async Task Gallery_ClampsThePaging()
+    {
+        AddPublished(_agencyA.Id, "Una");
+
+        var page = await CreateService(Staff(UserRole.Seller, _agencyA.Id)).GetGalleryAsync(new PublicPropertyQuery(Page: -5, PageSize: 100_000));
+
+        Assert.Equal(1, page.Page);
+        Assert.Equal(PublicPropertyQuery.MaxPageSize, page.PageSize);
+    }
+
+    // --- Cuenta gratuita de un particular ---------------------------------------------------
+
+    private async Task FillAsync(FakeCurrentUser owner, int count)
+    {
+        var service = CreateService(owner);
+        for (var i = 0; i < count; i++)
+        {
+            await service.CreateAsync(NewRequest());
+        }
+    }
+
+    [Fact]
+    public async Task AFreeAccount_CanCreateUpToItsLimit_ButNotOneMore()
+    {
+        var individual = _agencies.AddIndividual();
+        var owner = Staff(UserRole.AgencyAdmin, individual.Id);
+        await FillAsync(owner, 3);
+
+        var ex = await Assert.ThrowsAsync<PlanLimitException>(() => CreateService(owner).CreateAsync(NewRequest()));
+
+        Assert.Contains("3 propiedades", ex.Message);
+        Assert.Equal(3, _properties.Items.Count(p => p.AgencyId == individual.Id));
+    }
+
+    [Fact]
+    public async Task AFreeAccount_RecoversRoomWhenItDeletesAProperty()
+    {
+        var individual = _agencies.AddIndividual();
+        var owner = Staff(UserRole.AgencyAdmin, individual.Id);
+        await FillAsync(owner, 3);
+        var service = CreateService(owner);
+        await service.DeleteAsync(_properties.Items.First(p => p.AgencyId == individual.Id).Id);
+
+        await service.CreateAsync(NewRequest());
+
+        Assert.Equal(3, _properties.Items.Count(p => p.AgencyId == individual.Id && !p.IsDeleted));
+    }
+
+    [Fact]
+    public async Task ARegularAgency_HasNoPropertyLimit()
+    {
+        var owner = Staff(UserRole.AgencyAdmin, _agencyA.Id);
+
+        await FillAsync(owner, 5);
+
+        Assert.Equal(5, _properties.Items.Count(p => p.AgencyId == _agencyA.Id));
+    }
+
+    [Fact]
+    public async Task TheLimitIsPerAccount_AnotherAccountStartsFromZero()
+    {
+        var first = _agencies.AddIndividual("Uno");
+        var second = _agencies.AddIndividual("Dos");
+        await FillAsync(Staff(UserRole.AgencyAdmin, first.Id), 3);
+
+        await CreateService(Staff(UserRole.AgencyAdmin, second.Id)).CreateAsync(NewRequest());
+
+        Assert.Single(_properties.Items, p => p.AgencyId == second.Id);
+    }}

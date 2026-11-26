@@ -1,0 +1,42 @@
+﻿<section class="grid grid-cols-1 gap-4 md:grid-cols-2" aria-label="Plan actual">
+  <div class="card bg-base-100 shadow">
+    <div class="card-body gap-1">
+      <h2 class="card-title text-base">Publicaciones</h2>
+      <p data-testid="listings-plan">
+        {{ account().listings.planName ?? 'Sin plan (sin tope)' }}
+        @if (account().listings.isFree) {
+          <span class="badge badge-accent badge-sm ml-1">Gratuito</span>
+        }
+      </p>
+      <p class="text-sm text-base-content/70" data-testid="listings-usage">
+        {{ describeUsage(account().listings.used, account().listings.limit) }}
+        @if (account().listings.endsAt) {
+          · vence {{ account().listings.endsAt | date: 'dd/MM/yyyy' }}
+        }
+      </p>
+      @if (account().listings.limit !== null) {
+        <progress
+          class="progress w-full"
+          [class.progress-error]="usagePercent(account().listings.used, account().listings.limit) >= 100"
+          [value]="usagePercent(account().listings.used, account().listings.limit)"
+          max="100"
+          aria-label="Publicaciones usadas"
+        ></progress>
+      }
+    </div>
+  </div>
+
+  <div class="card bg-base-100 shadow">
+    <div class="card-body gap-1">
+      <h2 class="card-title text-base">Destacados</h2>
+      @if (account().featured; as featured) {
+        <p data-testid="featured-plan">{{ featured.planName }}</p>
+        <p class="text-sm text-base-content/70" data-testid="featured-usage">
+          {{ describeUsage(featured.used, featured.limit) }} · vence {{ featured.endsAt | date: 'dd/MM/yyyy' }}
+        </p>
+      } @else {
+        <p class="text-base-content/70" data-testid="no-featured">Sin paquete de destacados.</p>
+      }
+    </div>
+  </div>
+</section>

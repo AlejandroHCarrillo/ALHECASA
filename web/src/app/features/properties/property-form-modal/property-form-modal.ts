@@ -1,15 +1,19 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, input, output, signal } from '@angular/core';
-import { FormControl, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { Observable, defer, of, switchMap, tap } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { UserRole } from '../../../core/models/user-role';
 import { ErrorAlert } from '../../../shared/components/error-alert/error-alert';
 import { Modal } from '../../../shared/components/modal/modal';
+import { PrivacyNotice } from '../../../shared/components/privacy-notice/privacy-notice';
 import { resolveApiError } from '../../../shared/utils/api-error';
+import { formatCoordinates, parseCoordinates } from '../../../shared/utils/coordinates';
 import { imageUrl } from '../../../shared/utils/image-url';
 import { Agency } from '../../users/user.models';
 import { PropertiesService } from '../properties.service';
 import {
+  AMENITY_LABELS,
+  Amenity,
   CurrencyCode,
   IMAGE_LIMITS,
   OPERATION_LABELS,
@@ -23,7 +27,7 @@ import {
   UpdatePropertyRequest,
 } from '../property.models';
 
-type TextField = 'title' | 'price' | 'city' | 'state' | 'agencyId' | 'bedrooms' | 'bathrooms' | 'constructionArea' | 'landArea';
+type TextField = 'title' | 'coordinates' | 'parkingSpaces' | 'price' | 'city' | 'state' | 'agencyId' | 'bedrooms' | 'bathrooms' | 'constructionArea' | 'landArea';
 
 /** Imagen elegida en el equipo que todavía no se sube. */
 interface StagedImage {
@@ -39,7 +43,7 @@ export type ImageTile =
 /** Modal compartido para crear (property = null) y editar una propiedad. */
 @Component({
   selector: 'app-property-form-modal',
-  imports: [ReactiveFormsModule, Modal, ErrorAlert],
+  imports: [ReactiveFormsModule, Modal, ErrorAlert, PrivacyNotice],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './property-form-modal.html',
 })
@@ -61,6 +65,8 @@ export class PropertyFormModal implements OnInit, OnDestroy {
   protected readonly typeLabels = PROPERTY_TYPE_LABELS;
   protected readonly operationLabels = OPERATION_LABELS;
   protected readonly statusLabels = PROPERTY_STATUS_LABELS;
+  protected readonly amenities = Object.values(Amenity);
+  protected readonly amenityLabels = AMENITY_LABELS;
 
   protected readonly isEdit = computed(() => this.property() !== null);
 
@@ -108,6 +114,11 @@ export class PropertyFormModal implements OnInit, OnDestroy {
     bathrooms: new FormControl<number | null>(null, [Validators.min(0), Validators.max(PROPERTY_LIMITS.maxRooms)]),
     constructionArea: new FormControl<number | null>(null, [Validators.min(0), Validators.max(PROPERTY_LIMITS.maxArea)]),
     landArea: new FormControl<number | null>(null, [Validators.min(0), Validators.max(PROPERTY_LIMITS.maxArea)]),
+    coordinates: ['', [coordinatesValidator]],
+    parkingSpaces: new FormControl<number | null>(null, [Validators.min(0), Validators.max(PROPERTY_LIMITS.maxParking)]),
+    petsAllowed: [false],
+    furnished: [false],
+    amenities: [[] as Amenity[]],
     agencyId: [''],
   });
 
@@ -134,6 +145,11 @@ export class PropertyFormModal implements OnInit, OnDestroy {
         bathrooms: property.bathrooms,
         constructionArea: property.constructionArea,
         landArea: property.landArea,
+        coordinates: formatCoordinates(property.latitude, property.longitude),
+        parkingSpaces: property.parkingSpaces,
+        petsAllowed: property.petsAllowed,
+        furnished: property.furnished,
+        amenities: [...property.amenities],
       });
     }
 
@@ -141,6 +157,15 @@ export class PropertyFormModal implements OnInit, OnDestroy {
       this.form.controls.agencyId.addValidators(Validators.required);
       this.form.controls.agencyId.updateValueAndValidity();
     }
+  }
+
+  protected hasAmenity(amenity: Amenity): boolean {
+    return this.form.controls.amenities.value.includes(amenity);
+  }
+
+  protected toggleAmenity(amenity: Amenity): void {
+    const current = this.form.controls.amenities.value;
+    this.form.controls.amenities.setValue(current.includes(amenity) ? current.filter((a) => a !== amenity) : [...current, amenity]);
   }
 
   protected hasError(control: TextField): boolean {
@@ -156,6 +181,7 @@ export class PropertyFormModal implements OnInit, OnDestroy {
     }
 
     const value = this.form.getRawValue();
+    const coordinates = parseCoordinates(value.coordinates);
     const fields: UpdatePropertyRequest = {
       title: value.title.trim(),
       description: blankToNull(value.description),
@@ -173,6 +199,12 @@ export class PropertyFormModal implements OnInit, OnDestroy {
       bathrooms: value.bathrooms,
       constructionArea: value.constructionArea,
       landArea: value.landArea,
+      latitude: coordinates === null || coordinates === 'invalid' ? null : coordinates.latitude,
+      longitude: coordinates === null || coordinates === 'invalid' ? null : coordinates.longitude,
+      parkingSpaces: value.parkingSpaces,
+      petsAllowed: value.petsAllowed,
+      furnished: value.furnished,
+      amenities: value.amenities,
     };
 
     const wasEdit = this.property() !== null;
@@ -300,6 +332,11 @@ function revokePreview(url: string): void {
   if (url && typeof URL.revokeObjectURL === 'function') {
     URL.revokeObjectURL(url);
   }
+}
+
+/** Las coordenadas son opcionales, pero si se escriben deben ser latitud y longitud válidas. */
+function coordinatesValidator(control: AbstractControl<string>): ValidationErrors | null {
+  return parseCoordinates(control.value) === 'invalid' ? { coordinates: true } : null;
 }
 
 function blankToNull(value: string): string | null {

@@ -1,0 +1,59 @@
+<div class="space-y-6">
+  <section class="space-y-3" aria-labelledby="stats-properties-title">
+    <h2 id="stats-properties-title" class="text-lg font-bold">
+      Propiedades
+      <span class="text-sm font-normal text-base-content/70" data-testid="properties-total">· {{ dashboard().properties.total }} en total</span>
+    </h2>
+    <div class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      @for (card of propertyCards(); track card.key) {
+        <a routerLink="/propiedades" [queryParams]="query(card)" class="card bg-base-100 shadow transition hover:shadow-md" [attr.data-testid]="'stat-' + card.key">
+          <div class="card-body gap-0 p-4">
+            <span class="text-xs font-medium uppercase text-base-content/60">{{ card.label }}</span>
+            <span class="font-display text-3xl font-bold" [class]="card.tone" [attr.data-testid]="'value-' + card.key">{{ card.value }}</span>
+            <span class="text-xs text-base-content/60">{{ card.hint }}</span>
+          </div>
+        </a>
+      }
+    </div>
+  </section>
+
+  <section class="space-y-3" aria-labelledby="stats-inquiries-title">
+    <h2 id="stats-inquiries-title" class="text-lg font-bold">Solicitudes de informes</h2>
+    <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+      @for (card of inquiryCards(); track card.key) {
+        <a routerLink="/solicitudes" [queryParams]="query(card)" class="card bg-base-100 shadow transition hover:shadow-md" [attr.data-testid]="'stat-' + card.key">
+          <div class="card-body gap-0 p-4">
+            <span class="text-xs font-medium uppercase text-base-content/60">{{ card.label }}</span>
+            <span class="font-display text-3xl font-bold" [class]="card.tone" [attr.data-testid]="'value-' + card.key">{{ card.value }}</span>
+            <span class="text-xs text-base-content/60">{{ card.hint }}</span>
+          </div>
+        </a>
+      }
+    </div>
+
+    <div class="card bg-base-100 shadow">
+      <div class="card-body gap-2 p-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h3 class="font-semibold">Últimas preguntas nuevas</h3>
+          <a routerLink="/solicitudes" [queryParams]="{ status: 'New' }" class="link link-primary text-sm" data-testid="all-new-inquiries">Ver todas</a>
+        </div>
+        @for (inquiry of dashboard().latestNewInquiries; track inquiry.id) {
+          <a
+            routerLink="/solicitudes"
+            [queryParams]="{ status: 'New' }"
+            class="flex flex-wrap items-baseline justify-between gap-x-4 border-t border-base-200 pt-2 hover:text-primary"
+            data-testid="latest-inquiry"
+          >
+            <span>
+              <span class="font-medium">{{ inquiry.name }}</span>
+              <span class="text-base-content/70"> preguntó por {{ inquiry.propertyTitle }}</span>
+            </span>
+            <span class="text-xs text-base-content/60">{{ inquiry.createdAt | date: 'dd/MM/yyyy HH:mm' }}</span>
+          </a>
+        } @empty {
+          <p class="text-base-content/60" data-testid="no-new-inquiries">No tienes preguntas nuevas por atender.</p>
+        }
+      </div>
+    </div>
+  </section>
+</div>

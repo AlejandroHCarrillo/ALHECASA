@@ -1,0 +1,57 @@
+@let a = agency();
+<section class="card bg-base-200/60 shadow-sm" aria-label="Información de la inmobiliaria" data-testid="agency-info">
+  <div class="card-body gap-4 sm:flex-row sm:items-start">
+    <div class="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-box border border-base-300 bg-base-100">
+      @if (a.hasLogo) {
+        <img [src]="logoUrl()" alt="Logotipo de {{ a.name }}" class="h-full w-full object-contain" data-testid="logo" />
+      } @else {
+        <i class="fa-solid fa-building text-4xl text-base-content/40" aria-hidden="true"></i>
+      }
+    </div>
+
+    <div class="min-w-0 flex-1 space-y-3">
+      <h2 class="text-xl font-bold" data-testid="agency-name">{{ a.name }}</h2>
+
+      @if (a.description) {
+        <p class="whitespace-pre-line text-base-content/80" data-testid="description">{{ a.description }}</p>
+      }
+
+      <ul class="grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2" data-testid="contact">
+        @if (address()) {
+          <li data-testid="address"><i class="fa-solid fa-location-dot mr-2 w-4 text-base-content/60" aria-hidden="true"></i>{{ address() }}</li>
+        }
+        @if (a.openingHours) {
+          <li data-testid="hours"><i class="fa-solid fa-clock mr-2 w-4 text-base-content/60" aria-hidden="true"></i>{{ a.openingHours }}</li>
+        }
+        @if (a.phone) {
+          <li>
+            <i class="fa-solid fa-phone mr-2 w-4 text-base-content/60" aria-hidden="true"></i>
+            <a class="link link-hover" [href]="phoneHref()" data-testid="phone">{{ a.phone }}</a>
+          </li>
+        }
+        <li>
+          <i class="fa-solid fa-envelope mr-2 w-4 text-base-content/60" aria-hidden="true"></i>
+          <a class="link link-hover break-all" [href]="'mailto:' + a.email" data-testid="email">{{ a.email }}</a>
+        </li>
+        @if (a.website) {
+          <li>
+            <i class="fa-solid fa-globe mr-2 w-4 text-base-content/60" aria-hidden="true"></i>
+            <a class="link link-hover break-all" [href]="a.website" target="_blank" rel="noopener noreferrer nofollow" data-testid="website">Sitio web</a>
+          </li>
+        }
+        @if (a.facebookUrl) {
+          <li>
+            <i class="fa-brands fa-facebook mr-2 w-4 text-base-content/60" aria-hidden="true"></i>
+            <a class="link link-hover" [href]="a.facebookUrl" target="_blank" rel="noopener noreferrer nofollow" data-testid="facebook">Facebook</a>
+          </li>
+        }
+        @if (a.instagramUrl) {
+          <li>
+            <i class="fa-brands fa-instagram mr-2 w-4 text-base-content/60" aria-hidden="true"></i>
+            <a class="link link-hover" [href]="a.instagramUrl" target="_blank" rel="noopener noreferrer nofollow" data-testid="instagram">Instagram</a>
+          </li>
+        }
+      </ul>
+    </div>
+  </div>
+</section>

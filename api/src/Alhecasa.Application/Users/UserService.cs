@@ -11,6 +11,7 @@ namespace Alhecasa.Application.Users;
 /// - PlatformAdmin: administra usuarios de cualquier inmobiliaria (y particulares).
 /// - AgencyAdmin: solo usuarios de su inmobiliaria (incluidos sus empleados Supervisor y Seller); no puede crear PlatformAdmin ni Client.
 /// - Supervisor, Seller y Client: sin acceso a la administración de usuarios.
+/// - AgencyAdmin de una cuenta gratuita de particular (AgencyKind.Individual): sin acceso; solo tiene su propio usuario.
 /// El aislamiento de lectura lo garantiza además el filtro global del repositorio.
 /// </summary>
 public sealed class UserService(
@@ -25,14 +26,14 @@ public sealed class UserService(
 {
     public async Task<PagedResult<UserDto>> GetPagedAsync(UserListQuery query, CancellationToken cancellationToken = default)
     {
-        EnsureCanManageUsers();
+        await EnsureCanManageUsersAsync(cancellationToken);
         var page = await users.GetPagedAsync(query.Normalize(), cancellationToken);
         return page.Map(ToDto);
     }
 
     public async Task<UserDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        EnsureCanManageUsers();
+        await EnsureCanManageUsersAsync(cancellationToken);
         var user = await users.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException("User not found.");
         return ToDto(user);
@@ -40,7 +41,7 @@ public sealed class UserService(
 
     public async Task<UserDto> CreateAsync(CreateUserRequest request, CancellationToken cancellationToken = default)
     {
-        EnsureCanManageUsers();
+        await EnsureCanManageUsersAsync(cancellationToken);
         await createValidator.ValidateAndThrowAsync(request, cancellationToken);
 
         EnsureCanAssignRole(request.Role, currentRole: null);
@@ -68,7 +69,7 @@ public sealed class UserService(
 
     public async Task<UserDto> UpdateAsync(Guid id, UpdateUserRequest request, CancellationToken cancellationToken = default)
     {
-        EnsureCanManageUsers();
+        await EnsureCanManageUsersAsync(cancellationToken);
         await updateValidator.ValidateAndThrowAsync(request, cancellationToken);
 
         var user = await users.GetByIdAsync(id, cancellationToken)
@@ -109,7 +110,7 @@ public sealed class UserService(
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        EnsureCanManageUsers();
+        await EnsureCanManageUsersAsync(cancellationToken);
 
         if (id == currentUser.UserId)
         {
@@ -128,11 +129,19 @@ public sealed class UserService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    private void EnsureCanManageUsers()
+    private async Task EnsureCanManageUsersAsync(CancellationToken cancellationToken)
     {
         if (currentUser.Role is not (UserRole.PlatformAdmin or UserRole.AgencyAdmin))
         {
             throw new ForbiddenException("You do not have permission to manage users.");
+        }
+
+        // La cuenta gratuita de un particular tiene un solo usuario: no administra personal.
+        if (currentUser.Role == UserRole.AgencyAdmin
+            && currentUser.AgencyId is { } agencyId
+            && await agencies.GetByIdAsync(agencyId, cancellationToken) is { IsIndividual: true })
+        {
+            throw new ForbiddenException("A free individual account cannot manage users.");
         }
     }
 
