@@ -27,7 +27,10 @@ public sealed record PropertyData(
     int? ParkingSpaces = null,
     bool PetsAllowed = false,
     bool Furnished = false,
-    Amenity Amenities = Amenity.None);
+    Amenity Amenities = Amenity.None,
+    Guid? StateId = null,
+    Guid? CityId = null,
+    Guid? NeighborhoodId = null);
 
 /// <summary>
 /// Propiedad del inventario de una inmobiliaria. Pertenece siempre a una (es el tenant) y nunca cambia de inmobiliaria.
@@ -80,6 +83,21 @@ public class Property : BaseEntity
     public string State { get; private set; } = string.Empty;
 
     public string? PostalCode { get; private set; }
+
+    /// <summary>Estado del catálogo de ubicaciones al que corresponde <see cref="State"/>. Nulo en propiedades anteriores al catálogo, hasta que se enlazan.</summary>
+    public Guid? StateId { get; private set; }
+
+    /// <summary>Ciudad del catálogo a la que corresponde <see cref="City"/>. De aquí salen las páginas públicas por zona.</summary>
+    public Guid? CityId { get; private set; }
+
+    /// <summary>Colonia del catálogo a la que corresponde <see cref="Neighborhood"/>, si se capturó.</summary>
+    public Guid? NeighborhoodId { get; private set; }
+
+    /// <summary>La ciudad del catálogo (para el identificador de su página pública). Solo está cargada si se pidió con la propiedad.</summary>
+    public GeoCity? CityLocation { get; private set; }
+
+    /// <summary>La colonia del catálogo. Solo está cargada si se pidió con la propiedad.</summary>
+    public GeoNeighborhood? NeighborhoodLocation { get; private set; }
 
     public int? Bedrooms { get; private set; }
 
@@ -215,6 +233,9 @@ public class Property : BaseEntity
         City = data.City;
         State = data.State;
         PostalCode = data.PostalCode;
+        StateId = data.StateId;
+        CityId = data.CityId;
+        NeighborhoodId = data.NeighborhoodId;
         Bedrooms = data.Bedrooms;
         Bathrooms = data.Bathrooms;
         ConstructionArea = data.ConstructionArea;
@@ -243,6 +264,19 @@ public class Property : BaseEntity
         Furnished = furnished;
         Amenities = amenities;
         return true;
+    }
+
+    /// <summary>
+    /// Enlaza la propiedad con el catálogo de ubicaciones y toma de él los nombres oficiales (así «cdmx» y «Ciudad de México» quedan iguales).
+    /// </summary>
+    public void SetLocation(Guid stateId, string stateName, Guid cityId, string cityName, Guid? neighborhoodId, string? neighborhoodName)
+    {
+        StateId = stateId;
+        State = stateName;
+        CityId = cityId;
+        City = cityName;
+        NeighborhoodId = neighborhoodId;
+        Neighborhood = neighborhoodId is null ? null : neighborhoodName;
     }
 
     private static void ValidateCoordinates(decimal? latitude, decimal? longitude)

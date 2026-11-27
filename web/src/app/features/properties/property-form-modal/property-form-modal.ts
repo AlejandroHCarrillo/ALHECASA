@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnDestroy, OnInit, computed, inject, input, output, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AbstractControl, FormControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
-import { Observable, defer, of, switchMap, tap } from 'rxjs';
+import { Observable, Subject, catchError, debounceTime, defer, of, switchMap, tap } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { UserRole } from '../../../core/models/user-role';
 import { ErrorAlert } from '../../../shared/components/error-alert/error-alert';
@@ -10,6 +11,7 @@ import { resolveApiError } from '../../../shared/utils/api-error';
 import { formatCoordinates, parseCoordinates } from '../../../shared/utils/coordinates';
 import { imageUrl } from '../../../shared/utils/image-url';
 import { Agency } from '../../users/user.models';
+import { LocationsService } from '../locations.service';
 import { PropertiesService } from '../properties.service';
 import {
   AMENITY_LABELS,
@@ -51,6 +53,8 @@ export class PropertyFormModal implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder).nonNullable;
   private readonly propertiesService = inject(PropertiesService);
   private readonly auth = inject(AuthService);
+  private readonly locations = inject(LocationsService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly property = input<Property | null>(null);
   readonly agencies = input<Agency[]>([]);
@@ -67,6 +71,14 @@ export class PropertyFormModal implements OnInit, OnDestroy {
   protected readonly statusLabels = PROPERTY_STATUS_LABELS;
   protected readonly amenities = Object.values(Amenity);
   protected readonly amenityLabels = AMENITY_LABELS;
+
+  // Sugerencias de ubicación del catálogo. Se piden bajo demanda (al enfocar o escribir) y son solo ayuda: se puede escribir otro nombre.
+  protected readonly stateOptions = signal<string[]>([]);
+  protected readonly cityOptions = signal<string[]>([]);
+  protected readonly neighborhoodOptions = signal<string[]>([]);
+  private statesLoaded = false;
+  private readonly citySuggest$ = new Subject<void>();
+  private readonly neighborhoodSuggest$ = new Subject<void>();
 
   protected readonly isEdit = computed(() => this.property() !== null);
 
@@ -125,6 +137,30 @@ export class PropertyFormModal implements OnInit, OnDestroy {
   ngOnInit(): void {
     const property = this.property();
 
+    this.citySuggest$
+      .pipe(
+        debounceTime(SUGGEST_DEBOUNCE_MS),
+        switchMap(() =>
+          this.locations
+            .cities(this.form.controls.state.value, this.form.controls.city.value)
+            .pipe(catchError(() => of([] as string[]))),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((options) => this.cityOptions.set(options));
+
+    this.neighborhoodSuggest$
+      .pipe(
+        debounceTime(SUGGEST_DEBOUNCE_MS),
+        switchMap(() =>
+          this.locations
+            .neighborhoods(this.form.controls.state.value, this.form.controls.city.value, this.form.controls.neighborhood.value)
+            .pipe(catchError(() => of([] as string[]))),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((options) => this.neighborhoodOptions.set(options));
+
     if (property) {
       this.propertyId.set(property.id);
       this.savedImageIds.set([...property.imageIds]);
@@ -157,6 +193,33 @@ export class PropertyFormModal implements OnInit, OnDestroy {
       this.form.controls.agencyId.addValidators(Validators.required);
       this.form.controls.agencyId.updateValueAndValidity();
     }
+  }
+
+  /** Carga los estados la primera vez que se enfoca el campo. */
+  protected suggestStates(): void {
+    if (this.statesLoaded) {
+      return;
+    }
+
+    this.statesLoaded = true;
+    this.locations
+      .states()
+      .pipe(
+        catchError(() => {
+          this.statesLoaded = false;
+          return of([] as string[]);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((options) => this.stateOptions.set(options));
+  }
+
+  protected suggestCities(): void {
+    this.citySuggest$.next();
+  }
+
+  protected suggestNeighborhoods(): void {
+    this.neighborhoodSuggest$.next();
   }
 
   protected hasAmenity(amenity: Amenity): boolean {
@@ -323,6 +386,9 @@ export class PropertyFormModal implements OnInit, OnDestroy {
     this.clearStaged();
   }
 }
+
+/** Espera a que se deje de escribir antes de pedir sugerencias. */
+const SUGGEST_DEBOUNCE_MS = 250;
 
 function previewUrl(file: File): string {
   return typeof URL.createObjectURL === 'function' ? URL.createObjectURL(file) : '';

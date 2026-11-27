@@ -36,6 +36,9 @@ Referencia de los endpoints de la API de ALHECASA. Para instalar y ejecutar, con
 | `POST` | `/api/properties` | Los mismos | Crear propiedad |
 | `PUT` | `/api/properties/{id}` | Los mismos | Actualizar propiedad |
 | `GET` | `/api/public/properties/{id}` | Público (120 solicitudes por minuto por IP) | Detalle de una propiedad publicada, con todas sus imágenes |
+| `GET` | `/api/public/zones`, `/api/public/zones/{citySlug}[/{neighborhoodSlug}]` | Público (120 solicitudes por minuto por IP) | Zonas (ciudades y colonias) con propiedades publicadas |
+| `GET` | `/api/public/sitemap.xml` | Público (120 solicitudes por minuto por IP) | Mapa del sitio para buscadores |
+| `GET` | `/api/locations/states`, `/cities`, `/neighborhoods` | Cualquier rol | Sugerencias de ubicación para el formulario de propiedades |
 | `POST` | `/api/properties/{id}/images` | Los mismos | Cambiar la galería: subir y quitar imágenes (1 a 10 por propiedad) |
 | `PUT` | `/api/properties/{id}/featured` | Los mismos | Destacar una propiedad publicada (usa un lugar del paquete de destacados) o quitarle el destacado |
 | `DELETE` | `/api/properties/{id}` | Los mismos | Eliminar propiedad (borrado lógico) |
@@ -465,6 +468,8 @@ Parámetros, todos opcionales y combinables (se aplican con «y»):
 | `type` | `House` \| `Apartment` \| `Land` \| `Commercial` \| `Office` | Tipo de inmueble. Un valor inválido responde `400`. |
 | `location` | texto | Debe aparecer en la colonia, la ciudad o el estado (sin distinguir mayúsculas). No busca en el título ni en la calle. |
 | `agencyId` | guid | Solo las publicaciones activas de esa inmobiliaria. Es lo que abre el enlace «Publica: *nombre*» de las tarjetas (`/inmobiliarias/{id}` en la web). Un particular no se puede listar así: su `agencyId` no se publica y, si alguien lo conociera, tampoco devuelve nada. Un valor que no sea guid responde `400`; una inmobiliaria sin publicaciones activas, una página vacía. Se combina con los demás filtros. |
+| `citySlug` | texto | Solo las propiedades de esa ciudad del catálogo (por su identificador de dirección web, sin distinguir mayúsculas; ver «Zonas públicas»). Una ciudad desconocida da una página vacía. |
+| `neighborhoodSlug` | texto | Solo las de esa colonia. **Requiere `citySlug`** (la colonia es única solo dentro de su ciudad): sin él responde `400`. |
 | `ids` | guid, repetible | Solo estas propiedades (`?ids=<guid>&ids=<guid>`), siempre que además estén publicadas: un id de un borrador, de una propiedad pausada o eliminada, o desconocido simplemente no aparece. Lo usa «Mis favoritas» de la portada, cuyos `me gusta` se guardan en el navegador. Máximo **100** ids (`400` si se envían más); un valor que no sea guid responde `400`. Se combina con los demás filtros y con la paginación. |
 | `minPrice`, `maxPrice` | número | Rango de precio, en la moneda de `currency`. **No hay conversión** entre `MXN` y `USD`. Si se envía uno, `currency` es obligatoria. Deben ser ≥ 0, no pasar de 9,999,999,999,999.99 y `minPrice` ≤ `maxPrice` (`400` si no). |
 | `currency` | `MXN` \| `USD` | Moneda de los límites de precio. Sin límites, no filtra. |
@@ -480,13 +485,39 @@ Orden: el de `sort` (más recientes primero por defecto). Con el orden por defec
 
 **Ejemplos:** `GET /api/public/properties?operation=Rent&type=Apartment&location=roma` y `GET /api/public/properties?currency=MXN&maxPrice=3000000&minBedrooms=2&petsAllowed=true&amenities=Pool&sort=PriceAsc`
 
-Cada elemento de `items` trae solo datos públicos: `id`, `title`, `description`, `type`, `operation`, `price`, `currency`, `neighborhood`, `city`, `state`, `bedrooms`, `bathrooms`, `parkingSpaces`, `constructionArea`, `landArea`, `petsAllowed`, `furnished`, `amenities`, `approximateLatitude`, `approximateLongitude`, `imageIds` (la primera es la portada), `agencyName`, `agencyId` e `isFeatured` (si el anuncio está destacado ahora; la portada le pone la etiqueta «Destacado», sin importar el orden elegido). **No incluye** la calle ni el código postal (la dirección exacta se da al contactar), ni el estado. El único identificador de la inmobiliaria es `agencyId`, que sirve para listar sus publicaciones; es `null` cuando publica un particular, que es anónimo. La ubicación es **aproximada a propósito**: las coordenadas públicas se redondean a 3 decimales (unos 110 m) y son `null` si la propiedad no tiene ubicación; las exactas (`latitude`, `longitude`) solo las devuelve la API autenticada del personal.
+Cada elemento de `items` trae solo datos públicos: `id`, `title`, `description`, `type`, `operation`, `price`, `currency`, `neighborhood`, `city`, `state`, `bedrooms`, `bathrooms`, `parkingSpaces`, `constructionArea`, `landArea`, `petsAllowed`, `furnished`, `amenities`, `approximateLatitude`, `approximateLongitude`, `imageIds` (la primera es la portada), `agencyName`, `agencyId`, `citySlug` y `neighborhoodSlug` (los identificadores de las páginas de su ciudad y su colonia; `null` si la propiedad aún no está ligada al catálogo de ubicaciones) e `isFeatured` (si el anuncio está destacado ahora; la portada le pone la etiqueta «Destacado», sin importar el orden elegido). **No incluye** la calle ni el código postal (la dirección exacta se da al contactar), ni el estado. El único identificador de la inmobiliaria es `agencyId`, que sirve para listar sus publicaciones; es `null` cuando publica un particular, que es anónimo. La ubicación es **aproximada a propósito**: las coordenadas públicas se redondean a 3 decimales (unos 110 m) y son `null` si la propiedad no tiene ubicación; las exactas (`latitude`, `longitude`) solo las devuelve la API autenticada del personal.
 
 Límite: 120 solicitudes por minuto por IP (`429` al excederlo).
 
 ### `GET /api/public/properties/{id}`
 
 Detalle de una propiedad para la página de la publicación. **No requiere token.** Devuelve el mismo objeto público que cada elemento de la lista (con `imageIds` completo, en orden de galería) y aplica las **mismas reglas de visibilidad**: solo `Published`, no eliminada y de una inmobiliaria activa. Un borrador, una propiedad pausada, cerrada o eliminada, o un id desconocido responden `404` (no se distingue el motivo). Mismo límite de solicitudes que el listado.
+
+## Ubicaciones y zonas públicas
+
+Las propiedades se ligan a un **catálogo de ubicaciones** (estados, ciudades y colonias; ver [arquitectura](arquitectura.md#catálogo-de-ubicaciones-y-páginas-por-zona-seo)). Al crear o editar una propiedad, los textos `state`, `city` y `neighborhood` se **reemplazan por los nombres del catálogo** (por ejemplo `cdmx` queda como `Ciudad de México`) y, si la ciudad o la colonia no existen, se dan de alta. Un nombre sin letras ni números responde `400`. La respuesta de la propiedad ya trae los nombres canónicos.
+
+### `GET /api/locations/states`, `/cities`, `/neighborhoods`
+
+Sugerencias para el formulario de propiedades. **Requieren sesión** (cualquier rol). Devuelven un arreglo de nombres (texto), ordenados, **máximo 50**.
+
+| Ruta | Parámetros | Descripción |
+|---|---|---|
+| `GET /api/locations/states` | — | Los 32 estados y los que se hayan dado de alta. |
+| `GET /api/locations/cities` | `state` (nombre o abreviatura, opcional), `q` (texto contenido, opcional) | Ciudades del estado, o de todos si `state` va vacío. |
+| `GET /api/locations/neighborhoods` | `state`, `city`, `q` | Colonias de esa ciudad. Sin ciudad (o si no existe) responde un arreglo vacío. |
+
+### `GET /api/public/zones`
+
+Las ciudades y colonias con más propiedades publicadas, mezcladas, para los enlaces «Explora por zona». **No requiere token.** Parámetro `limit` (por omisión 30, entre 1 y 100). Cada elemento: `name`, `cityName`, `citySlug`, `neighborhoodSlug` (`null` si es una ciudad), `saleCount` y `rentCount`. Solo cuentan las propiedades visibles al público (mismas reglas que el catálogo público).
+
+### `GET /api/public/zones/{citySlug}` y `GET /api/public/zones/{citySlug}/{neighborhoodSlug}`
+
+Una ciudad o una colonia de ella. **No requiere token.** Devuelve `cityName`, `citySlug`, `stateName`, `neighborhoodName` y `neighborhoodSlug` (`null` en una ciudad), `saleCount`, `rentCount` y `neighborhoods` (las colonias de la ciudad con propiedades, con más propiedades primero). Responde `404` si la zona no existe, no tiene ninguna propiedad publicada o la colonia es de otra ciudad. Es lo que usan las páginas `/venta/:ciudad[/:colonia]` y `/renta/:ciudad[/:colonia]` de la web; sus propiedades se piden al catálogo con `citySlug`, `neighborhoodSlug` y `operation`.
+
+### `GET /api/public/sitemap.xml`
+
+El mapa del sitio (formato sitemaps.org, `application/xml`, UTF-8): la portada, la calculadora hipotecaria, las zonas con propiedades en cada operación, las inmobiliarias con nombre y cada publicación. Las direcciones usan el dominio configurado en `Seo:SiteUrl` (el del **frontend**) y hay un máximo de 50,000. **No requiere token.** Los tres endpoints de zonas y el mapa comparten el límite de 120 solicitudes por minuto por IP.
 
 ---
 

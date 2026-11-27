@@ -1,6 +1,7 @@
 using Alhecasa.Application.Abstractions;
 using Alhecasa.Application.Billing;
 using Alhecasa.Application.Common;
+using Alhecasa.Application.Locations;
 using Alhecasa.Application.Properties;
 using Alhecasa.Domain.Common;
 using Alhecasa.Domain.Entities;
@@ -18,6 +19,7 @@ public sealed class PropertyServiceTests
     private readonly FakeUnitOfWork _unitOfWork = new();
     private readonly FakeImageStorage _storage = new();
     private readonly FakePlanRepository _plans = new();
+    private readonly FakeLocationRepository _locations = new();
     private readonly FakeSubscriptionRepository _subscriptions = new();
     private readonly FakeClock _clock = new(new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
     private readonly Agency _agencyA;
@@ -38,7 +40,8 @@ public sealed class PropertyServiceTests
         new CreatePropertyRequestValidator(),
         new UpdatePropertyRequestValidator(),
         _clock,
-        new EntitlementService(_subscriptions, _plans, _properties, _clock, new AccountLimits(3)));
+        new EntitlementService(_subscriptions, _plans, _properties, _clock, new AccountLimits(3)),
+        new LocationResolver(_locations));
 
     private static FakeCurrentUser Staff(UserRole role, Guid agencyId) =>
         new() { UserId = Guid.CreateVersion7(), Role = role, AgencyId = agencyId };

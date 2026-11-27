@@ -37,6 +37,9 @@ export interface PublicProperty {
   amenities: Amenity[];
   /** Anuncio destacado: la portada lo muestra primero y con una etiqueta. */
   isFeatured: boolean;
+  /** Identificadores de la página pública de su ciudad y colonia; nulos si la propiedad aún no está ligada al catálogo. */
+  citySlug?: string | null;
+  neighborhoodSlug?: string | null;
 }
 
 /** Filtros de la portada: los básicos más los avanzados. Cadena vacía, `null` o `false` significan «sin filtro». */
@@ -89,6 +92,24 @@ export class PublicPropertiesService {
       params = params.set('location', filters.location.trim());
     }
     return this.http.get<PagedResult<PublicProperty>>(this.url, { params: appendAdvancedParams(params, filters) });
+  }
+
+  /**
+   * Las publicaciones de una ciudad o de una colonia del catálogo de ubicaciones (por el identificador de la dirección web), de una
+   * operación, las más recientes primero (los destacados antes).
+   */
+  getByZone(
+    operation: OperationType,
+    citySlug: string,
+    neighborhoodSlug: string | null,
+    page: number,
+    pageSize: number,
+  ): Observable<PagedResult<PublicProperty>> {
+    let params = new HttpParams().set('operation', operation).set('citySlug', citySlug).set('page', page).set('pageSize', pageSize);
+    if (neighborhoodSlug) {
+      params = params.set('neighborhoodSlug', neighborhoodSlug);
+    }
+    return this.http.get<PagedResult<PublicProperty>>(this.url, { params });
   }
 
   /** Todas las publicaciones activas de una inmobiliaria con nombre (no de un particular), las más recientes primero. */

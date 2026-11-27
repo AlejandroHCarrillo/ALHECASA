@@ -1,6 +1,7 @@
 using Alhecasa.Application.Abstractions;
 using Alhecasa.Application.Common;
 using Alhecasa.Application.Dashboard;
+using Alhecasa.Application.Locations;
 using Alhecasa.Application.Properties;
 using Alhecasa.Domain.Entities;
 using Alhecasa.Domain.Enums;
@@ -100,11 +101,15 @@ internal sealed class PropertyRepository(AlhecasaDbContext db, TimeProvider time
 
     // IgnoreQueryFilters: sin sesión los filtros globales no devuelven nada. La visibilidad se define aquí, explícita
     // y en un solo lugar (la usan el listado y el detalle): no borrada, publicada y de una inmobiliaria activa y no borrada.
-    private IQueryable<Property> VisiblePublicly() => db.Properties
-        .IgnoreQueryFilters()
-        .AsNoTracking()
+    private IQueryable<Property> VisiblePublicly() => PublishedRows()
         .Include(p => p.Agency)
         .Include(p => p.Images)
+        .Include(p => p.CityLocation)
+        .Include(p => p.NeighborhoodLocation);
+
+    private IQueryable<Property> PublishedRows() => db.Properties
+        .IgnoreQueryFilters()
+        .AsNoTracking()
         .Where(p => !p.IsDeleted
             && p.Status == PropertyStatus.Published
             && !p.Agency!.IsDeleted
@@ -137,6 +142,17 @@ internal sealed class PropertyRepository(AlhecasaDbContext db, TimeProvider time
 
         source = ApplyCriteria(source, query);
 
+        if (query.CitySlug is not null)
+        {
+            // Por el catálogo de ubicaciones (no por texto): «cdmx» y «Ciudad de México» son la misma zona.
+            var citySlug = query.CitySlug;
+            var neighborhoodSlug = query.NeighborhoodSlug;
+            source = neighborhoodSlug is null
+                ? source.Where(p => db.GeoCities.Any(c => c.Id == p.CityId && c.Slug == citySlug))
+                : source.Where(p => db.GeoNeighborhoods.Any(n =>
+                    n.Id == p.NeighborhoodId && n.Slug == neighborhoodSlug && n.City!.Slug == citySlug));
+        }
+
         if (query.Location is not null)
         {
             // Solo colonia, ciudad y estado: la calle no es un dato público.
@@ -163,6 +179,57 @@ internal sealed class PropertyRepository(AlhecasaDbContext db, TimeProvider time
 
         return new PagedResult<Property>(items, query.Page, query.PageSize, total);
     }
+
+    public async Task<IReadOnlyList<ZoneCount>> GetPublishedZoneCountsAsync(CancellationToken cancellationToken = default)
+    {
+        var rows = await (
+            from p in PublishedRows()
+            where p.CityId != null
+            join c in db.GeoCities on p.CityId equals c.Id
+            join s in db.GeoStates on c.StateId equals s.Id
+            join n in db.GeoNeighborhoods on p.NeighborhoodId equals n.Id into neighborhoods
+            from n in neighborhoods.DefaultIfEmpty()
+            group p by new
+            {
+                StateName = s.Name,
+                CityName = c.Name,
+                CitySlug = c.Slug,
+                NeighborhoodName = n.Name,
+                NeighborhoodSlug = n.Slug,
+                p.Operation
+            }
+            into g
+            select new
+            {
+                g.Key.StateName,
+                g.Key.CityName,
+                g.Key.CitySlug,
+                g.Key.NeighborhoodName,
+                g.Key.NeighborhoodSlug,
+                g.Key.Operation,
+                Count = g.Count()
+            }).ToListAsync(cancellationToken);
+
+        return rows
+            .Select(r => new ZoneCount(r.StateName, r.CityName, r.CitySlug, r.NeighborhoodName, r.NeighborhoodSlug, r.Operation, r.Count))
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<SitemapProperty>> GetPublishedForSitemapAsync(int limit, CancellationToken cancellationToken = default)
+    {
+        var rows = await PublishedRows()
+            .OrderByDescending(p => p.CreatedAt).ThenByDescending(p => p.Id)
+            .Take(limit)
+            .Select(p => new { p.Id, p.CreatedAt, p.UpdatedAt, p.AgencyId, IsIndividual = p.Agency!.Kind == AgencyKind.Individual })
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(r => new SitemapProperty(r.Id, r.UpdatedAt ?? r.CreatedAt, r.AgencyId, r.IsIndividual)).ToList();
+    }
+
+    public async Task<IReadOnlyList<Property>> ListWithoutLocationAsync(CancellationToken cancellationToken = default) =>
+        await db.Properties.IgnoreQueryFilters()
+            .Where(p => !p.IsDeleted && p.CityId == null)
+            .ToListAsync(cancellationToken);
 
     public async Task AddAsync(Property entity, CancellationToken cancellationToken = default) =>
         await db.Properties.AddAsync(entity, cancellationToken);

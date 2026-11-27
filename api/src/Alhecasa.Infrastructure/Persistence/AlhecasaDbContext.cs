@@ -26,6 +26,13 @@ public sealed class AlhecasaDbContext(
 
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
 
+    // Catálogo de ubicaciones: es de la plataforma (sin aislamiento por inmobiliaria ni borrado lógico).
+    public DbSet<GeoState> GeoStates => Set<GeoState>();
+
+    public DbSet<GeoCity> GeoCities => Set<GeoCity>();
+
+    public DbSet<GeoNeighborhood> GeoNeighborhoods => Set<GeoNeighborhood>();
+
     // Propiedades del contexto usadas por los filtros globales: EF las evalúa en cada consulta
     // con los valores del usuario de la solicitud actual.
     private bool CurrentIsPlatformAdmin => currentUser.IsPlatformAdmin;

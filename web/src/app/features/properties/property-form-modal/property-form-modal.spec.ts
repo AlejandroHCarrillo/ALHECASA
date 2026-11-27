@@ -460,4 +460,75 @@ describe('PropertyFormModal', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Price must be positive.');
   });
+
+  describe('location suggestions', () => {
+    const locationsUrl = `${environment.apiUrl}/locations`;
+    const wait = () => new Promise<void>((resolve) => setTimeout(resolve, 300));
+    const focus = (fixture: ComponentFixture<PropertyFormModal>, id: string) =>
+      (fixture.nativeElement.querySelector(`#${id}`) as HTMLElement).dispatchEvent(new Event('focus'));
+    const options = (fixture: ComponentFixture<PropertyFormModal>, id: string) =>
+      Array.from(fixture.nativeElement.querySelectorAll(`#${id} option`) as NodeListOf<HTMLOptionElement>).map((o) => o.value);
+
+    it('asks for nothing until the user goes to a location field', async () => {
+      await open(UserRole.Seller);
+      await wait();
+
+      http.expectNone((r) => r.url.startsWith(locationsUrl));
+    });
+
+    it('loads the states once, on the first focus, and offers them', async () => {
+      const fixture = await open(UserRole.Seller);
+
+      focus(fixture, 'state');
+      focus(fixture, 'state');
+      http.expectOne(`${locationsUrl}/states`).flush(['Jalisco', 'Nuevo León']);
+      fixture.detectChanges();
+
+      expect(options(fixture, 'state-options')).toEqual(['Jalisco', 'Nuevo León']);
+    });
+
+    it('suggests the cities of the typed state, for the typed text', async () => {
+      const fixture = await open(UserRole.Seller);
+      set(fixture, 'state', 'Jalisco');
+      set(fixture, 'city', 'Guad');
+      await wait();
+
+      const request = http.expectOne((r) => r.url === `${locationsUrl}/cities`);
+      expect(request.request.params.get('state')).toBe('Jalisco');
+      expect(request.request.params.get('q')).toBe('Guad');
+      request.flush(['Guadalajara']);
+      fixture.detectChanges();
+
+      expect(options(fixture, 'city-options')).toEqual(['Guadalajara']);
+    });
+
+    it('suggests the neighborhoods of the typed city', async () => {
+      const fixture = await open(UserRole.Seller);
+      set(fixture, 'state', 'Jalisco');
+      set(fixture, 'city', 'Guadalajara');
+      set(fixture, 'neighborhood', 'Prov');
+      await wait();
+
+      const request = http.expectOne((r) => r.url === `${locationsUrl}/neighborhoods`);
+      expect(request.request.params.get('city')).toBe('Guadalajara');
+      expect(request.request.params.get('q')).toBe('Prov');
+      request.flush(['Providencia']);
+      fixture.detectChanges();
+
+      expect(options(fixture, 'neighborhood-options')).toEqual(['Providencia']);
+    });
+
+    it('keeps the form usable when the suggestions fail', async () => {
+      const fixture = await open(UserRole.Seller);
+
+      focus(fixture, 'state');
+      http.expectOne(`${locationsUrl}/states`).flush({}, { status: 500, statusText: 'Server Error' });
+      fixture.detectChanges();
+
+      expect(options(fixture, 'state-options')).toEqual([]);
+      // Al volver a enfocar se intenta de nuevo.
+      focus(fixture, 'state');
+      http.expectOne(`${locationsUrl}/states`).flush(['Jalisco']);
+    });
+  });
 });

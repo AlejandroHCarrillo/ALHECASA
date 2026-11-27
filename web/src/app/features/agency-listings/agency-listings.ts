@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Title } from '@angular/platform-browser';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Subject, catchError, map, of, switchMap, tap } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
@@ -8,6 +7,7 @@ import { ErrorAlert } from '../../shared/components/error-alert/error-alert';
 import { Logo } from '../../shared/components/logo/logo';
 import { Paginator } from '../../shared/components/paginator/paginator';
 import { PagedResult } from '../../shared/models/paged-result';
+import { SeoService } from '../../shared/services/seo.service';
 import { resolveApiError } from '../../shared/utils/api-error';
 import { AgencyProfile } from '../agency-profile/agency-profile.models';
 import { AgencyProfileService } from '../agency-profile/agency-profile.service';
@@ -32,7 +32,7 @@ export class AgencyListings {
   private readonly route = inject(ActivatedRoute);
   private readonly publicProperties = inject(PublicPropertiesService);
   private readonly profiles = inject(AgencyProfileService);
-  private readonly title = inject(Title);
+  private readonly seo = inject(SeoService);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly auth = inject(AuthService);
 
@@ -105,7 +105,16 @@ export class AgencyListings {
 
   private updateTitle(): void {
     const name = this.agencyName();
-    this.title.setTitle(name ? `Publicaciones de ${name} · ALHECASA` : 'Publicaciones de la inmobiliaria · ALHECASA');
+    const about = this.agency()?.description?.trim();
+    this.seo.set({
+      title: name ? `Publicaciones de ${name} · ALHECASA` : 'Publicaciones de la inmobiliaria · ALHECASA',
+      description: about
+        ? about.length > 155
+          ? `${about.slice(0, 152).trimEnd()}...`
+          : about
+        : `Propiedades en venta y renta publicadas por ${name ?? 'la inmobiliaria'} en ALHECASA.`,
+      path: `/inmobiliarias/${encodeURIComponent(this.agencyId)}`,
+    });
   }
 
   protected goToPage(page: number): void {

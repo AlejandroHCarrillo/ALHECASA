@@ -1,0 +1,17 @@
+@if (zones().length > 0) {
+  <section class="mx-auto max-w-6xl space-y-4 px-4 py-10 sm:px-6" aria-labelledby="zones-title" data-testid="popular-zones">
+    <div>
+      <h2 id="zones-title" class="text-2xl font-bold">Explora por zona</h2>
+      <p class="text-base-content/70">Las ciudades y colonias con más propiedades publicadas.</p>
+    </div>
+    <ul class="flex flex-wrap gap-2">
+      @for (zone of zones(); track zone.citySlug + '/' + (zone.neighborhoodSlug ?? '')) {
+        <li>
+          <a class="badge badge-lg badge-outline hover:badge-primary" [routerLink]="commands(zone)">
+            {{ label(zone) }} ({{ count(zone) }})
+          </a>
+        </li>
+      }
+    </ul>
+  </section>
+}

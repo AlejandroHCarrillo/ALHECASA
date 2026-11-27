@@ -51,6 +51,13 @@ internal sealed class PropertyConfiguration : IEntityTypeConfiguration<Property>
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(p => p.Images).UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        // Enlaces al catálogo de ubicaciones. Sin borrado en cascada: el catálogo no se elimina mientras haya propiedades.
+        builder.HasOne<GeoState>().WithMany().HasForeignKey(p => p.StateId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(p => p.CityLocation).WithMany().HasForeignKey(p => p.CityId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(p => p.NeighborhoodLocation).WithMany().HasForeignKey(p => p.NeighborhoodId).OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(p => p.AgencyId);
+        builder.HasIndex(p => p.CityId);
+        builder.HasIndex(p => p.NeighborhoodId);
     }
 }

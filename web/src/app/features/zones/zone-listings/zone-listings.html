@@ -1,0 +1,120 @@
+<div class="flex min-h-screen flex-col bg-base-100">
+  <header class="bg-base-100 shadow-sm">
+    <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
+      <a routerLink="/" aria-label="ALHECASA, inicio">
+        <app-logo />
+      </a>
+      @if (!auth.isAuthenticated()) {
+        <div class="flex items-center gap-2">
+          <a routerLink="/registro" class="btn btn-outline btn-primary btn-sm sm:btn-md">Publica gratis</a>
+          <a routerLink="/login" class="btn btn-primary btn-sm sm:btn-md">
+            <i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>
+            Iniciar sesión
+          </a>
+        </div>
+      }
+    </div>
+  </header>
+
+  <main class="mx-auto w-full max-w-6xl flex-1 space-y-6 px-4 py-6 sm:px-6">
+    @if (zone(); as info) {
+      <nav aria-label="Ruta de navegación" class="breadcrumbs text-sm" data-testid="breadcrumb">
+        <ul>
+          <li><a routerLink="/">Inicio</a></li>
+          @if (info.neighborhoodName) {
+            <li>
+              <a [routerLink]="cityCommands()" data-testid="crumb-city">{{ info.cityName }}</a>
+            </li>
+            <li>{{ info.neighborhoodName }}</li>
+          } @else {
+            <li>{{ info.cityName }}</li>
+          }
+        </ul>
+      </nav>
+
+      <div id="publicaciones" class="space-y-2">
+        <h1 class="text-2xl font-bold sm:text-3xl" data-testid="title">Propiedades {{ phrase() }} en {{ zoneName() }}</h1>
+        <p class="text-base-content/70" data-testid="count">
+          @if (count() > 0) {
+            {{ count() }} {{ count() === 1 ? 'propiedad' : 'propiedades' }} {{ phrase() }} en {{ place() }}.
+          } @else {
+            Por ahora no hay propiedades {{ phrase() }} en esta zona.
+          }
+        </p>
+
+        <div role="tablist" class="tabs tabs-boxed w-fit" aria-label="Operación">
+          @for (op of operations; track op) {
+            <a
+              role="tab"
+              class="tab"
+              [class.tab-active]="op === operation()"
+              [routerLink]="switchCommands(op)"
+              [attr.aria-selected]="op === operation()"
+              [attr.data-testid]="'tab-' + op"
+            >
+              {{ op === 'venta' ? 'En venta' : 'En renta' }}
+              ({{ op === 'venta' ? info.saleCount : info.rentCount }})
+            </a>
+          }
+        </div>
+      </div>
+    }
+
+    @if (notFound()) {
+      <section class="rounded-box bg-base-200 p-10 text-center" data-testid="not-found">
+        <h1 class="text-xl font-bold">No encontramos esta zona</h1>
+        <p class="mt-2 text-base-content/70">Puede que ya no tenga propiedades publicadas o que el enlace no sea correcto.</p>
+        <a routerLink="/" class="btn btn-primary mt-6">Ver propiedades disponibles</a>
+      </section>
+    }
+
+    @if (error(); as message) {
+      <app-error-alert [message]="message" (dismissed)="error.set(null)" />
+    }
+
+    @if (loading() && !result() && !notFound()) {
+      <div class="flex justify-center py-16">
+        <span class="loading loading-spinner loading-lg" aria-label="Cargando propiedades"></span>
+      </div>
+    } @else if (result()?.items?.length) {
+      <ul class="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3" [class.opacity-60]="loading()" data-testid="list">
+        @for (property of result()?.items; track property.id) {
+          <li><app-public-property-card [data]="property" /></li>
+        }
+      </ul>
+
+      @if (result(); as page) {
+        <app-paginator [page]="page.page" [pageSize]="pageSize" [totalCount]="page.totalCount" (pageChange)="goToPage($event)" />
+      }
+    } @else if (zone() && !error() && !loading()) {
+      <section class="rounded-box bg-base-200 p-10 text-center" data-testid="empty">
+        <h2 class="text-xl font-bold">No hay propiedades {{ phrase() }} en esta zona</h2>
+        @if (otherCount() > 0) {
+          <p class="mt-2 text-base-content/70">Sí hay {{ otherCount() }} {{ otherOperation() === 'renta' ? 'en renta' : 'en venta' }}.</p>
+          <a [routerLink]="switchCommands(otherOperation())" class="btn btn-primary mt-6" data-testid="see-other">
+            Ver las propiedades {{ otherOperation() === 'renta' ? 'en renta' : 'en venta' }}
+          </a>
+        } @else {
+          <a routerLink="/" class="btn btn-primary mt-6">Ver propiedades disponibles</a>
+        }
+      </section>
+    }
+
+    @if (neighbors().length > 0) {
+      <section class="space-y-3" aria-labelledby="neighbors-title" data-testid="neighbors">
+        <h2 id="neighbors-title" class="text-lg font-bold">
+          {{ zone()?.neighborhoodName ? 'Otras colonias en ' + zone()?.cityName : 'Colonias en ' + zone()?.cityName }}
+        </h2>
+        <ul class="flex flex-wrap gap-2">
+          @for (link of neighbors(); track link.neighborhoodSlug) {
+            <li>
+              <a class="badge badge-lg badge-outline hover:badge-primary" [routerLink]="neighborCommands(link)">
+                {{ link.name }} ({{ link.saleCount + link.rentCount }})
+              </a>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+  </main>
+</div>

@@ -10,6 +10,7 @@ import { Logo } from '../../shared/components/logo/logo';
 import { AdvancedFilters } from '../../shared/components/advanced-filters/advanced-filters';
 import { Paginator } from '../../shared/components/paginator/paginator';
 import { PagedResult } from '../../shared/models/paged-result';
+import { SeoService } from '../../shared/services/seo.service';
 import { resolveApiError } from '../../shared/utils/api-error';
 import {
   NO_ADVANCED_CRITERIA,
@@ -21,6 +22,7 @@ import {
   normalizeAdvanced,
 } from '../properties/property-criteria';
 import { OPERATION_LABELS, OperationType, PROPERTY_LIMITS, PROPERTY_TYPE_LABELS, PropertySort, PropertyType } from '../properties/property.models';
+import { PopularZones } from '../zones/popular-zones/popular-zones';
 import { PublicPropertyCard } from './public-property-card/public-property-card';
 import { NO_FILTERS, PublicPropertiesService, PublicProperty, PublicPropertyFilters } from './public-properties.service';
 
@@ -47,7 +49,7 @@ interface Step {
 /** Portada pública: solo para quien no ha iniciado sesión. Muestra las propiedades publicadas y lleva al login. */
 @Component({
   selector: 'app-landing',
-  imports: [ReactiveFormsModule, RouterLink, AdvancedFilters, ErrorAlert, Logo, Paginator, PublicPropertyCard],
+  imports: [ReactiveFormsModule, RouterLink, AdvancedFilters, ErrorAlert, Logo, Paginator, PopularZones, PublicPropertyCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './landing.html',
 })
@@ -58,6 +60,7 @@ export class Landing {
   private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly seo = inject(SeoService);
 
   protected readonly pageSize = PAGE_SIZE;
   protected readonly locationMaxLength = PROPERTY_LIMITS.city;
@@ -122,6 +125,13 @@ export class Landing {
   private initialized = false;
 
   constructor() {
+    this.seo.set({
+      title: 'ALHECASA · Propiedades en venta y renta',
+      description:
+        'Encuentra casas, departamentos, terrenos y locales en venta y renta en México. Busca por zona, precio y características y contacta directo a la inmobiliaria.',
+      path: '/',
+    });
+
     // switchMap descarta respuestas viejas si el visitante vuelve a buscar o cambia de página.
     this.reload$
       .pipe(

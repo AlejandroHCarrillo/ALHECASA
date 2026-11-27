@@ -1,6 +1,7 @@
 using Alhecasa.Application.Abstractions;
 using Alhecasa.Application.Billing;
 using Alhecasa.Application.Common;
+using Alhecasa.Application.Locations;
 using Alhecasa.Domain.Common;
 using Alhecasa.Domain.Entities;
 using Alhecasa.Domain.Enums;
@@ -58,7 +59,8 @@ public sealed class PropertyService(
     IValidator<CreatePropertyRequest> createValidator,
     IValidator<UpdatePropertyRequest> updateValidator,
     TimeProvider timeProvider,
-    IEntitlementService entitlements) : IPropertyService
+    IEntitlementService entitlements,
+    ILocationResolver locationResolver) : IPropertyService
 {
     public async Task<PagedResult<PropertyDto>> GetPagedAsync(PropertyListQuery query, CancellationToken cancellationToken = default)
     {
@@ -102,7 +104,7 @@ public sealed class PropertyService(
 
         var agency = await ResolveAgencyAsync(request.AgencyId, cancellationToken);
         await EnsureWithinPlanAsync(agency, cancellationToken);
-        var property = new Property(agency.Id, request.ToData());
+        var property = new Property(agency.Id, await ToDataAsync(request, cancellationToken));
 
         await properties.AddAsync(property, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -123,7 +125,7 @@ public sealed class PropertyService(
             throw new DomainException(PublishNeedsImagesMessage);
         }
 
-        property.Update(request.ToData());
+        property.Update(await ToDataAsync(request, cancellationToken));
 
         // Un anuncio que deja de estar publicado pierde el destacado: así no ocupa un lugar del paquete sin verse.
         if (property.Status != PropertyStatus.Published)
@@ -245,6 +247,24 @@ public sealed class PropertyService(
         }
 
         return ToDto(property);
+    }
+
+    /// <summary>
+    /// Los datos de la propiedad con su ubicación enlazada al catálogo de estados, ciudades y colonias, con los nombres oficiales del catálogo
+    /// (así «cdmx» y «Ciudad de México», o «polanco» y «Polanco», son la misma zona y forman una sola página pública).
+    /// </summary>
+    private async Task<PropertyData> ToDataAsync(PropertyRequest request, CancellationToken cancellationToken)
+    {
+        var location = await locationResolver.ResolveAsync(request.State, request.City, request.Neighborhood, cancellationToken);
+        return request.ToData() with
+        {
+            State = location.StateName,
+            City = location.CityName,
+            Neighborhood = location.NeighborhoodName,
+            StateId = location.StateId,
+            CityId = location.CityId,
+            NeighborhoodId = location.NeighborhoodId
+        };
     }
 
     private const string PublishNeedsImagesMessage =

@@ -37,6 +37,7 @@ public static class DependencyInjection
         services.AddScoped<IInquiryRepository, InquiryRepository>();
         services.AddScoped<IPlanRepository, PlanRepository>();
         services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
+        services.AddScoped<ILocationRepository, LocationRepository>();
 
         // Pasarela de pagos: hoy una simulación. Con la real, se sustituye esta línea (y Program.cs deja de exigir Payments:AllowSimulated).
         services.AddSingleton<IPaymentGateway, SimulatedPaymentGateway>();

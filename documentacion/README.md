@@ -156,6 +156,7 @@ sqlcmd -I -S "(localdb)\MSSQLLocalDB" -d Alhecasa -Q "SELECT Email, Role FROM Us
 | `Jwt:Issuer`, `Jwt:Audience`, `Jwt:ExpirationMinutes` | `appsettings.json` | Parámetros del token (60 minutos por defecto) |
 | `Jwt:SigningKey` | **user-secrets / entorno** | Clave de firma HMAC (obligatoria, mínimo 32 caracteres) |
 | `Cors:AllowedOrigins` | `appsettings.json` | Orígenes permitidos (por defecto `http://localhost:4200`) |
+| `Seo:SiteUrl` | `appsettings.json` / entorno | Dirección pública del **frontend** (por defecto `http://localhost:4200`), con la que se arma el mapa del sitio (`/api/public/sitemap.xml`). Cámbiala en producción (`Seo__SiteUrl=https://tu-dominio`); la API no arranca si no es una dirección `http` o `https` válida |
 | `Payments:AllowSimulated` | variable de entorno | Obligatoria fuera de Desarrollo (`true`): la pasarela de pagos es una simulación que no cobra |
 | `Database:MigrateOnStartup` | `appsettings*.json` | Aplica migraciones al iniciar |
 | `Database:SeedOnStartup` | `appsettings*.json` | Crea los datos iniciales al iniciar |
